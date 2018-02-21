@@ -9,7 +9,7 @@
 #'@description  Add the embedding with the given name to the global MetaData attribute.
 #'@param loom   The loom file handler.
 #'@param name   The name of the annotation.
-#'@param values The uniques values of the annotation to be added.
+#'@param values The values of the annotation to be added.
 #'
 add_global_md_annotation<-function(loom
                                  , name
@@ -135,9 +135,9 @@ add_global_meta_data<-function(loom) {
   }
 }
 
-#####################
-# General functions #
-#####################
+#######################
+# Embedding functions #
+#######################
 
 #'
 #'@description Add the given embedding as a row attribute and meta data related to the given embeddding to the given .loom file handler.
@@ -214,6 +214,32 @@ add_clustering<-function(loom
                            , annotation.cluster.description.cl = annotation.cluster.description.cl)
 }
 
+add_cluster_markers<-function(loom
+                              , clustering.group
+                              , clustering.id
+                              , cluster.id
+                              , markers) {
+  genes<-get_genes(loom = loom, is.flybase.gn = F)
+  # Adding the cluster markers data
+  k<-paste0(clustering.group,"Markers","_",clustering.id)
+  if(col_attrs_exists_by_key(loom = loom, key = k)) {
+    ca.clustering.markers.df<-get_col_attr_by_key(k)
+    cluster.markers.df<-data.frame(x = genes %in% markers)
+    colnames(clusters.df)<-paste0("_", ncol(ca.clustering.markers.df)+1)
+    ca.clustering.markers.df<-cbind(ca.clustering.markers.df, cluster.markers.df)
+    add_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clustering.markers.df))
+  } else {
+    clustering<-data.frame("_0" = genes %in% markers)
+    add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
+  }
+
+  # Adding the cluster markers meta data
+  add_global_md_cluster_markers(loom = loom
+                                , clustering.group = clustering.group
+                                , clustering.id = clustering.id
+                                , cluster.id = cluster.id)
+}
+
 ####################
 # SCENIC functions #
 ####################
@@ -266,6 +292,24 @@ add_fbgn<-function(loom
   colnames(fbgn.gn.mapping)<-c("FBgn","Gene")
   genes<-merge(x = data.frame("Gene"=row.names(dgem)), y = fbgn.gn.mapping, by = "Gene")
   add_row_attr(loom = loom, key = "FBgn", value = genes$FBgn)
+}
+
+###########################
+# Row Meta data functions #
+###########################
+
+#'
+#'@description Get the gene names either symbols or Flybase gene identifiers.
+#'@param loom           The loom file handler.
+#'@param is.flybase.gn  Whether to retrieve the Flybase gene identifiers or not.
+#'
+get_genes<-function(loom
+                    , is.flybase.gn = F) {
+  ra<-loom[["row_attrs"]]
+  if(is.flybase.gn) {
+    return (ra[["FBgn"]])
+  }
+  return (ra[["Gene"]][])
 }
 
 #####################
