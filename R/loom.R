@@ -1,5 +1,7 @@
+#
 # loom.R
 #
+library(hdf5r)
 
 ##############################
 # Global Meta data functions #
@@ -16,8 +18,9 @@ add_global_md_annotation<-function(loom
                                  , values) {
   gmd<-get_global_meta_data(loom = loom)
   a<-gmd["annotations"]
-  append(x = a, values = list(name = name, values = unique(values)))
-  gmd["annotations"]<-a
+  a[[length(a)+1]]<-list(name = name, values = unique(values))
+  gmd[["annotations"]]<-NULL
+  gmd[["annotations"]]<-a
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   loom$flush
 }
@@ -32,16 +35,16 @@ add_global_md_embedding<-function(loom
                                 , name
                                 , is.default = F) {
   gmd<-get_global_meta_data(loom = loom)
-  e<-gmd["embeddings"]
+  e<-gmd[["embeddings"]]
   if(is.default) {
     id<-(-1)
   } else {
-    id<-len(e)+1
+    id<-length(e)-1
   }
-  append(x = e, values = list(id = id, name = name))
-  gmd["embeddings"]<-e
+  e[[length(e)+1]]<-list(id = id, name = name)
+  gmd[["embeddings"]]<-NULL
+  gmd[["embeddings"]]<-e
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
-  loom$flush
 }
 
 #'
@@ -61,7 +64,7 @@ add_global_md_clustering<-function(loom
                                  , annotation.cluster.id.cl = NULL
                                  , annotation.cluster.description.cl = NULL) {
   gmd<-get_global_meta_data(loom = loom)
-  c<-gmd["clusterings"]
+  c<-gmd[["clusterings"]]
   unique.clusters<-sort(as.numeric(unique(seurat@ident))-1, decreasing = F)
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     if(is.null(annotation)) {
@@ -76,14 +79,15 @@ add_global_md_clustering<-function(loom
     return (list(id = cluster[[annotation.cluster.id.cl]]
                  , description = cluster[[annotation.cluster.description.cl]]))
   })
-  ca<-file.h5[["col_attrs"]]
+  ca<-loom[["col_attrs"]]
   clusterings<-ca[[paste0(method,"Clusterings")]][]
   clustering<-list(id = ncol(clusterings)+1, # n clusterings
                    group = group,
                    name = name,
                    clusters = clusters)
-  append(x = c, values = clustering)
-  gmd["clusterings"]<-e
+  c[[length(c)+1]]<-clustering
+  gmd[["clusterings"]]<-NULL
+  gmd[["clusterings"]]<-c
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   loom$flush
 }
@@ -101,10 +105,12 @@ add_global_md_cluster_markers<-function(loom
                                       , cluster.id) {
   gmd<-get_global_meta_data(loom = loom)
   m<-gmd["markers"]
-  append(x = m, values = list(clusteringGroup = clustering.group
-                            , clusteringId = clustering.id
-                            , clusterId = cluster.id))
   gmd["markers"]<-m
+  m[[length(m)+1]]<-list(clusteringGroup = clustering.group
+                         , clusteringId = clustering.id
+                         , clusterId = cluster.id)
+  gmd[["markers"]]<-NULL
+  gmd[["markers"]]<-m
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   loom$flush
 }
@@ -122,7 +128,7 @@ update_global_meta_data<-function(loom
   h5attr(x = loom, which = "MetaData")<-meta.data.json
 }
 
-add_global_meta_data<-function(loom) {
+init_global_meta_data<-function(loom) {
   meta.data<-list(annotations = list()
                 , embeddings = list()
                 , clusterings = list()
@@ -154,22 +160,28 @@ add_embedding<-function(loom
   if(is.default) {
     add_col_attr(loom = loom, key = "Embedding", value = as.data.frame(embedding))
   } else {
-    if(sum(c("Embeddings_X","Embeddings_Y")%in%file.h5[["col_attrs"]]$names) != 2) {
+    ca<-loom[["col_attrs"]]
+    if(sum(c("Embeddings_X","Embeddings_Y")%in%names(ca)) != 2) {
       for(i in seq_along(coord.labels)) {
-        add_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(embedding[,i]))
+        e<-as.data.frame(embedding[,i])
+        colnames(e)<-"_0"
+        add_col_attr(loom = loom, key = coord.labels[i], value = e)
       }
     } else {
       for(i in seq_along(coord.labels)) {
-        ca.embeddings<-get_col_attr_by_key(coord.labels[i])
-        ca.embeddings<-cbind(ca.embeddings, as.data.frame(embedding[,i]))
+        ca.embeddings<-get_col_attr_by_key(loom = loom, key = coord.labels[i])
+        e<-as.data.frame(embedding[,i])
+        colnames(e)<-paste0("_",ncol(ca.embeddings))
+        ca.embeddings<-cbind(ca.embeddings, e)
         # Update the current coordinates Embeddings
-        add_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(ca.embeddings))
+        update_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(ca.embeddings))
       }
     }
   }
   loom$flush()
   # Ad the given embedding to the global attribute MetaData
   add_global_md_embedding(loom = loom, name = name, is.default = is.default)
+  loom$flush()
 }
 
 #########################
@@ -260,8 +272,8 @@ add_scenic_regulons<-function(loom
     colnames(reg.mask)<-reg.name
     return (reg.mask)
   }))
-  row.names(reg.mask)<-row.names(dgem)
-  colnames(reg.mask)<-gsub(pattern = " ", replacement = "_", x = colnames(reg.mask))
+  row.names(regulons.mask)<-row.names(dgem)
+  colnames(regulons.mask)<-gsub(pattern = " ", replacement = "_", x = colnames(regulons.mask))
   add_row_attr(loom = loom, key = "Regulons", value = as.data.frame(x = regulons.mask))
 }
 
@@ -329,6 +341,13 @@ add_global_attr<-function(loom
   loom$flush()
 }
 
+update_row_attr<-function(loom
+                          , key
+                          , value) {
+  loom$link_delete(name = paste0("row_attrs/",key))
+  add_col_attr(loom = loom, key = key, value = value)
+}
+
 #'
 #'@description Add a new row attribute to the given .loom object accessible by the given key and containing the given value.
 #'@param loom   The loom file handler.
@@ -353,6 +372,13 @@ get_col_attr_by_key<-function(loom
                             , key) {
   ca<-loom[["col_attrs"]]
   return (ca[[key]][])
+}
+
+update_col_attr<-function(loom
+                          , key
+                          , value) {
+  loom$link_delete(name = paste0("col_attrs/",key))
+  add_col_attr(loom = loom, key = key, value = value)
 }
 
 #'
@@ -405,6 +431,9 @@ build_loom<-function(file.name
   loom<-H5File$new(filename = file.name, mode = "w")
   cn<-colnames(dgem)
   rn<-row.names(dgem)
+  print("Adding global attributes...")
+  # global MetaData attribute
+  init_global_meta_data(loom = loom)
   # matrix
   print("Adding matrix...")
   add_matrix(loom = loom, dgem = t(dgem))
@@ -429,4 +458,8 @@ build_loom<-function(file.name
   print("Adding layers...")
   layers<-loom$create_group("layers")
   loom$flush()
+}
+
+open_loom<-function(file.path) {
+  return (H5File$new(file.path, mode="r+"))
 }
