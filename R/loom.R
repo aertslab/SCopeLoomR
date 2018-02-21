@@ -48,27 +48,34 @@ add_global_md_embedding<-function(loom
 #'@description  Add the clustering annotation to the global MetaData attribute.
 #'@param loom                               The loom file handler.
 #'@param group                              The name of the group of clusterings
-#'@param name                               The name given to the givem clustering.
+#'@param name                               The name given to the given clustering.
+#'@param clusters                           A list of the the cluster id for each cell present in the same order as in the columns of gene expression matrix
 #'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering method.
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering method.
 #'
 add_global_md_clustering<-function(loom
                                  , group
                                  , name
-                                 , annotation
-                                 , annotation.cluster.id.cl # Column label containing the id of the cluster
-                                 , annotation.cluster.description.cl) { # Column label containing the description of the cluster
+                                 , clusters
+                                 , annotation = NULL
+                                 , annotation.cluster.id.cl = NULL
+                                 , annotation.cluster.description.cl = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd["clusterings"]
-  clusters<-do.call("c", apply(X = annotation, MARGIN = 1, FUN = function(cluster) {
-    description<-cluster[[annotation.cluster.description.cl]]
-    # If no annotation provided for the current cluster then just concat "Cluster" with the cluster ID
-    if(nchar(cluster[[annotation.cluster.description.cl]])>0) {
-      description<-paste("Cluster",cluster[[annotation.cluster.id.cl]])
+  unique.clusters<-sort(as.numeric(unique(seurat@ident))-1, decreasing = F)
+  clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
+    if(is.null(annotation)) {
+      description<-paste("Cluster", annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.id.cl])
+    } else {
+      description<-cluster[[annotation.cluster.description.cl]]
+      # If no annotation provided for the current cluster then just concat "Cluster" with the cluster ID
+      if(nchar(cluster[[annotation.cluster.description.cl]])>0) {
+        description<-paste("Cluster",cluster[[annotation.cluster.id.cl]])
+      }
     }
     return (list(id = cluster[[annotation.cluster.id.cl]]
                  , description = cluster[[annotation.cluster.description.cl]]))
-  }))
+  })
   ca<-file.h5[["col_attrs"]]
   clusterings<-ca[[paste0(method,"Clusterings")]][]
   clustering<-list(id = ncol(clusterings)+1, # n clusterings
@@ -171,13 +178,21 @@ add_embedding<-function(loom
 
 #'
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
-#'@param loom       The loom file handler.
-#'@param group      The for the given clustering group to which the given clusters have to be added
-#'@param clusters   A list of the the cluster id for each cell present in the matrix
+#'@param loom                               The loom file handler.
+#'@param group                              The for the given clustering group to which the given clusters have to be added
+#'@param clusters                           A list of the the cluster id for each cell present in the matrix
+#'@param annotation                         A data.frame with annotation for the clusters
+#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering method.
+#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering method.
 #'
 add_clustering<-function(loom
                          , group
-                         , clusters) {
+                         , name
+                         , clusters
+                         , annotation
+                         , annotation.cluster.id.cl
+                         , annotation.cluster.description.cl) {
+  # Adding the clustering data
   k<-paste0(group,"Clusterings")
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
     ca.clusterings<-get_col_attr_by_key(k)
@@ -189,6 +204,14 @@ add_clustering<-function(loom
     clustering<-data.frame("_0" = clusters)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
+
+  # Adding the clustering meta data
+  add_global_md_clustering(loom = loom
+                           , group = group
+                           , name = name
+                           , annotation = annotation
+                           , annotation.cluster.id.cl = annotation.cluster.id.cl
+                           , annotation.cluster.description.cl = annotation.cluster.description.cl)
 }
 
 ####################
