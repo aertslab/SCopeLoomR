@@ -165,12 +165,30 @@ add_embedding<-function(loom
   add_global_md_embedding(loom = loom, name = name, is.default = is.default)
 }
 
-####################
-# Seurat functions #
-####################
+#########################
+# Clusterings functions #
+#########################
 
-add_clustering<-function() {
-
+#'
+#'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
+#'@param loom       The loom file handler.
+#'@param group      The for the given clustering group to which the given clusters have to be added
+#'@param clusters   A list of the the cluster id for each cell present in the matrix
+#'
+add_clustering<-function(loom
+                         , group
+                         , clusters) {
+  k<-paste0(group,"Clusterings")
+  if(col_attrs_exists_by_key(loom = loom, key = k)) {
+    ca.clusterings<-get_col_attr_by_key(k)
+    clustering<-data.frame(x = clusters)
+    colnames(clusters.df)<-paste0("_", ncol(ca.clusterings)+1)
+    ca.clusterings<-cbind(ca.clusterings, clustering)
+    add_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
+  } else {
+    clustering<-data.frame("_0" = clusters)
+    add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
+  }
 }
 
 ####################
@@ -253,14 +271,21 @@ add_global_attr<-function(loom
 add_row_attr<-function(loom
                        , key
                        , value) {
-  grp.row.attrs<-loom[["row_attrs"]]
-  grp.row.attrs[[key]]<-value
+  ra<-loom[["row_attrs"]]
+  ra[[key]]<-value
   loom$flush()
 }
 
-get_col_attr_by_key<-function() {
-  grp.col.attrs<-loom[["col_attrs"]]
-  return (grp.col.attrs[[key]][])
+col_attrs_exists_by_key<-function(loom
+                                , key) {
+  ca<-loom[["col_attrs"]]
+  return (key %in% names(ca))
+}
+
+get_col_attr_by_key<-function(loom
+                            , key) {
+  ca<-loom[["col_attrs"]]
+  return (ca[[key]][])
 }
 
 #'
@@ -272,8 +297,8 @@ get_col_attr_by_key<-function() {
 add_col_attr<-function(loom
                        , key
                        , value) {
-  grp.col.attrs<-loom[["col_attrs"]]
-  grp.col.attrs[[key]]<-value
+  ca<-loom[["col_attrs"]]
+  ca[[key]]<-value
   loom$flush()
 }
 
