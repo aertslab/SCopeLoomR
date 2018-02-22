@@ -68,12 +68,12 @@ add_global_md_clustering<-function(loom
   unique.clusters<-sort(as.numeric(unique(seurat@ident))-1, decreasing = F)
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     if(is.null(annotation)) {
-      description<-paste("Not Annotated", "Cluster", annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.id.cl])
+      description<-paste("NDA - Cluster", annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.id.cl])
     } else {
-      description<-cluster[[annotation.cluster.description.cl]]
+      description<-paste0(cluster[[annotation.cluster.description.cl]], " (",cluster.id,")")
       # If no annotation provided for the current cluster then just concat "Cluster" with the cluster ID
       if(nchar(cluster[[annotation.cluster.description.cl]])>0) {
-        description<-paste("Not Annotated, Cluster",cluster[[annotation.cluster.id.cl]])
+        description<-paste("NDA - Cluster",cluster[[annotation.cluster.id.cl]])
       }
     }
     return (list(id = cluster[[annotation.cluster.id.cl]]
@@ -178,9 +178,24 @@ add_clustering<-function(loom
                          , group
                          , name
                          , clusters
-                         , annotation
-                         , annotation.cluster.id.cl
-                         , annotation.cluster.description.cl) {
+                         , is.default = F
+                         , annotation = NULL
+                         , annotation.cluster.id.cl =  NULL
+                         , annotation.cluster.description.cl = NULL) {
+  # If the clustering is the default one
+  # Add it as the generic column attributes ClusterID and ClusterName
+  if(is.default) {
+    add_col_attr(loom = loom, key = "ClusterID", value = as.data.frame(x = clusters))
+    for(cluster in clusters) {
+      if(is.null(annotation)) {
+        description<-paste0("NDA - Cluster ", cluster)
+      } else {
+        description<-annotation[annotation[[annotation.cluster.id.cl]]==cluster, annotation.cluster.description.cl]
+      }
+      names(clusters)[clusters==cluster]<-description
+    }
+    add_col_attr(loom = loom, key = "ClusterName", value = as.data.frame(x = clusters))
+  }
   # Adding the clustering data
   k<-"Clusterings"
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
@@ -204,7 +219,6 @@ add_clustering<-function(loom
 }
 
 add_cluster_markers<-function(loom
-                              , clustering.group
                               , clustering.id
                               , cluster.id
                               , markers) {
@@ -270,17 +284,17 @@ add_scenic_regulons_auc_matrix<-function(loom
 #'@param regulons       A list of list of the clustering markers.
 #'
 add_clustering_markers<-function(loom
-                               , dgem
                                , clustering.id
                                , clustering.markers) {
+  genes<-get_genes(loom = loom, is.flybase.gn = F)
   clustering.markers.mask<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
     cluster.name<-names(clustering.markers)[cluster.idx]
     cluster.markers<-clustering.markers[cluster.idx]
-    cm.mask<-data.frame("x"=row.names(dgem)%in%cluster.markers, stringsAsFactors = F)
+    cm.mask<-data.frame("x" = genes %in% cluster.markers, stringsAsFactors = F)
     colnames(cm.mask)<-cluster.name
     return (cm.mask)
   }))
-  row.names(clustering.markers.mask)<-row.names(dgem)
+  row.names(clustering.markers.mask)<-genes
   add_row_attr(loom = loom, key = paste0("ClusteringMarkers_",clustering.id), value = as.data.frame(x = clustering.markers.mask))
 }
 
