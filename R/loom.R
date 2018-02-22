@@ -67,17 +67,16 @@ add_global_md_clustering<-function(loom
   c<-gmd[["clusterings"]]
   unique.clusters<-sort(as.numeric(unique(seurat@ident))-1, decreasing = F)
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
-    if(is.null(annotation)) {
-      description<-paste("NDA - Cluster", annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.id.cl])
-    } else {
-      description<-paste0(cluster[[annotation.cluster.description.cl]], " (",cluster.id,")")
-      # If no annotation provided for the current cluster then just concat "Cluster" with the cluster ID
-      if(nchar(cluster[[annotation.cluster.description.cl]])>0) {
-        description<-paste("NDA - Cluster",cluster[[annotation.cluster.id.cl]])
+    description<-paste("NDA - Cluster", cluster.id)
+    if(!is.null(annotation)) {
+      # If annotation for the current cluster not empty then add
+      d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
+      if(nchar(d)>0) {
+        description<-paste0(d, " (",cluster.id,")")
       }
     }
-    return (list(id = cluster[[annotation.cluster.id.cl]]
-                 , description = cluster[[annotation.cluster.description.cl]]))
+    return (list(id = cluster.id
+                 , description = description))
   })
   ca<-loom[["col_attrs"]]
   clusterings<-ca[["Clusterings"]][]
@@ -108,8 +107,7 @@ update_global_meta_data<-function(loom
 init_global_meta_data<-function(loom) {
   meta.data<-list(annotations = list()
                 , embeddings = list()
-                , clusterings = list()
-                , markers = list())
+                , clusterings = list())
   meta.data.json<-rjson::toJSON(meta.data)
   if(!("MetaData"%in%list.attributes(object = loom))) {
     loom$create_attr(attr_name = "MetaData", robj = meta.data.json)
@@ -166,6 +164,62 @@ add_embedding<-function(loom
 #########################
 
 #'
+#'@description Add all the Seurat clusterings in the given seurat object to the given .loom file handler.
+#'@param loom                               The loom file handler.
+#'@param seurat                             The Seurat object
+#'@param default.clustering.resolution      The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default.
+#'@param seurat.markers.file.path.list      The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res2.0).
+#'@param annotation                         A data.frame with annotation for the clusters
+#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
+#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
+#'
+add_seurat_clustering<-function(loom
+                                , seurat
+                                , default.clustering.resolution
+                                , seurat.markers.file.path.list
+                                , annotation
+                                , annotation.cluster.id.cl
+                                , annotation.cluster.description.cl) {
+  clustering.resolutions<-as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2])
+  for(res in clustering.resolutions) {
+    seurat<-SetAllIdent(object = seurat, id = paste0("res.",res))
+    cluster.ids<-seurat@ident
+    is.default.clustering<-F
+    # Add the Seurat clusters
+    print("Adding Seurat clusters...")
+    a<-NULL
+    ac.id.cl<-NULL
+    ac.description.cl<-NULL
+    if(res == default.clustering.resolution) {
+      print("Adding default Seurat clusters...")
+      a<-annotation
+      ac.id.cl<-annotation.cluster.id.cl
+      ac.description.cl<-annotation.cluster.description.cl
+      is.default.clustering<-T
+    }
+    loom$flush()
+    add_clustering(loom = loom
+                   , group = "Seurat"
+                   , name = paste("Seurat, resolution",res)
+                   , clusters = cluster.ids
+                   , is.default = is.default.clustering
+                   , annotation = a
+                   , annotation.cluster.id.cl = ac.id.cl
+                   , annotation.cluster.description.cl = ac.description.cl)
+    loom$flush()
+    # Add the Seurat markers
+    print("Adding Seurat markers...")
+    seurat.markers<-readRDS(file = seurat.markers.file.path.list[[paste0("res.", res)]])
+    seurat.m.list<-split(x = seurat.markers, f = seurat.markers$cluster)
+    seurat.m.list<-lapply(X = seurat.m.list, function(cluster) {
+      return (cluster$gene)
+    })
+    add_clustering_markers(loom = loom, clustering.id = res, clustering.markers = seurat.m.list)
+    loom$flush()
+  }
+}
+
+#'
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
 #'@param loom                               The loom file handler.
 #'@param group                              The for the given clustering group to which the given clusters have to be added
@@ -185,30 +239,33 @@ add_clustering<-function(loom
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
-    add_col_attr(loom = loom, key = "ClusterID", value = as.data.frame(x = clusters))
-    for(cluster in clusters) {
-      if(is.null(annotation)) {
-        description<-paste0("NDA - Cluster ", cluster)
-      } else {
-        description<-annotation[annotation[[annotation.cluster.id.cl]]==cluster, annotation.cluster.description.cl]
+    add_col_attr(loom = loom, key = "ClusterID", value = clusters)
+    unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
+    for(cluster in unique.clusters) {
+      description<-paste0("NDA - Cluster ", cluster)
+      names(clusters)<-description
+      if(!is.null(annotation)) {
+        description<-annotation[annotation[[annotation.cluster.id.cl]] == cluster, annotation.cluster.description.cl]
       }
-      names(clusters)[clusters==cluster]<-description
+      names(clusters)[clusters == cluster]<-description
     }
-    add_col_attr(loom = loom, key = "ClusterName", value = as.data.frame(x = clusters))
+    add_col_attr(loom = loom, key = "ClusterName", value = names(clusters))
   }
   # Adding the clustering data
   k<-"Clusterings"
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
-    ca.clusterings<-get_col_attr_by_key(k)
+    print("Clusterings already exists...")
+    ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
     clustering<-data.frame(x = clusters)
-    colnames(clusters.df)<-as.character(ncol(ca.clusterings)+1)
+    colnames(clustering)<-as.character(ncol(ca.clusterings)+1)
     ca.clusterings<-cbind(ca.clusterings, clustering)
-    add_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
+    update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
   } else {
+    print("Clusterings created...")
     clustering<-data.frame("0" = clusters)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
-
+  loom$flush()
   # Adding the clustering meta data
   add_global_md_clustering(loom = loom
                            , group = group
@@ -216,6 +273,7 @@ add_clustering<-function(loom
                            , annotation = annotation
                            , annotation.cluster.id.cl = annotation.cluster.id.cl
                            , annotation.cluster.description.cl = annotation.cluster.description.cl)
+  loom$flush()
 }
 
 add_cluster_markers<-function(loom
@@ -226,7 +284,7 @@ add_cluster_markers<-function(loom
   # Adding the cluster markers data
   k<-paste0("ClusteringMarkers","_",clustering.id)
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
-    ca.clustering.markers.df<-get_col_attr_by_key(k)
+    ca.clustering.markers.df<-get_col_attr_by_key(loom = loom, key = k)
     cluster.markers.df<-data.frame(x = genes %in% markers)
     colnames(clusters.df)<-as.character(ncol(ca.clustering.markers.df)+1)
     ca.clustering.markers.df<-cbind(ca.clustering.markers.df, cluster.markers.df)
@@ -235,6 +293,7 @@ add_cluster_markers<-function(loom
     clustering<-data.frame("0" = genes %in% markers)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
+  loom$flush()
 }
 
 ####################
@@ -260,6 +319,7 @@ add_scenic_regulons<-function(loom
   row.names(regulons.mask)<-row.names(dgem)
   colnames(regulons.mask)<-gsub(pattern = " ", replacement = "_", x = colnames(regulons.mask))
   add_row_attr(loom = loom, key = "Regulons", value = as.data.frame(x = regulons.mask))
+  loom$flush()
 }
 
 #'
@@ -270,6 +330,7 @@ add_scenic_regulons<-function(loom
 add_scenic_regulons_auc_matrix<-function(loom
                                          , regulons.AUC) {
   add_col_attr(loom = loom, key = "RegulonsAUC", value = as.data.frame(x = t(regulons.AUC)))
+  loom$flush()
 }
 
 ###########################
@@ -295,7 +356,10 @@ add_clustering_markers<-function(loom
     return (cm.mask)
   }))
   row.names(clustering.markers.mask)<-genes
+  clustering.id<-ncol(loom[["col_attrs"]][["Clusterings"]][])-1
+  print(paste0("Adding markers for clustering ID ", clustering.id))
   add_row_attr(loom = loom, key = paste0("ClusteringMarkers_",clustering.id), value = as.data.frame(x = clustering.markers.mask))
+  loom$flush()
 }
 
 #'
