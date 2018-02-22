@@ -53,8 +53,8 @@ add_global_md_embedding<-function(loom
 #'@param group                              The name of the group of clusterings
 #'@param name                               The name given to the given clustering.
 #'@param clusters                           A list of the the cluster id for each cell present in the same order as in the columns of gene expression matrix
-#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering method.
-#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering method.
+#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
+#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
 #'
 add_global_md_clustering<-function(loom
                                  , group
@@ -80,7 +80,7 @@ add_global_md_clustering<-function(loom
                  , description = cluster[[annotation.cluster.description.cl]]))
   })
   ca<-loom[["col_attrs"]]
-  clusterings<-ca[[paste0(method,"Clusterings")]][]
+  clusterings<-ca[["Clusterings"]][]
   clustering<-list(id = ncol(clusterings)+1, # n clusterings
                    group = group,
                    name = name,
@@ -88,29 +88,6 @@ add_global_md_clustering<-function(loom
   c[[length(c)+1]]<-clustering
   gmd[["clusterings"]]<-NULL
   gmd[["clusterings"]]<-c
-  update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
-  loom$flush
-}
-
-#'
-#'@description  Add the markers to the global MetaData attribute.
-#'@param loom             The loom file handler.
-#'@param clustering.group The name of the group of clusterings.
-#'@param clustering.id    The id of the clustering from which the markers have been calculated.
-#'@param cluster.id       The id of the cluster to which the markers are specific for
-#'
-add_global_md_cluster_markers<-function(loom
-                                      , clustering.group
-                                      , clustering.id
-                                      , cluster.id) {
-  gmd<-get_global_meta_data(loom = loom)
-  m<-gmd["markers"]
-  gmd["markers"]<-m
-  m[[length(m)+1]]<-list(clusteringGroup = clustering.group
-                         , clusteringId = clustering.id
-                         , clusterId = cluster.id)
-  gmd[["markers"]]<-NULL
-  gmd[["markers"]]<-m
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   loom$flush
 }
@@ -194,8 +171,8 @@ add_embedding<-function(loom
 #'@param group                              The for the given clustering group to which the given clusters have to be added
 #'@param clusters                           A list of the the cluster id for each cell present in the matrix
 #'@param annotation                         A data.frame with annotation for the clusters
-#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering method.
-#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering method.
+#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
+#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
 #'
 add_clustering<-function(loom
                          , group
@@ -205,15 +182,15 @@ add_clustering<-function(loom
                          , annotation.cluster.id.cl
                          , annotation.cluster.description.cl) {
   # Adding the clustering data
-  k<-paste0(group,"Clusterings")
+  k<-"Clusterings"
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
     ca.clusterings<-get_col_attr_by_key(k)
     clustering<-data.frame(x = clusters)
-    colnames(clusters.df)<-paste0("_", ncol(ca.clusterings)+1)
+    colnames(clusters.df)<-as.character(ncol(ca.clusterings)+1)
     ca.clusterings<-cbind(ca.clusterings, clustering)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
   } else {
-    clustering<-data.frame("_0" = clusters)
+    clustering<-data.frame("0" = clusters)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
 
@@ -233,23 +210,17 @@ add_cluster_markers<-function(loom
                               , markers) {
   genes<-get_genes(loom = loom, is.flybase.gn = F)
   # Adding the cluster markers data
-  k<-paste0(clustering.group,"Markers","_",clustering.id)
+  k<-paste0("ClusteringMarkers","_",clustering.id)
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
     ca.clustering.markers.df<-get_col_attr_by_key(k)
     cluster.markers.df<-data.frame(x = genes %in% markers)
-    colnames(clusters.df)<-paste0("_", ncol(ca.clustering.markers.df)+1)
+    colnames(clusters.df)<-as.character(ncol(ca.clustering.markers.df)+1)
     ca.clustering.markers.df<-cbind(ca.clustering.markers.df, cluster.markers.df)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clustering.markers.df))
   } else {
-    clustering<-data.frame("_0" = genes %in% markers)
+    clustering<-data.frame("0" = genes %in% markers)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
-
-  # Adding the cluster markers meta data
-  add_global_md_cluster_markers(loom = loom
-                                , clustering.group = clustering.group
-                                , clustering.id = clustering.id
-                                , cluster.id = cluster.id)
 }
 
 ####################
