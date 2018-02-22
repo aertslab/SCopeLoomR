@@ -68,12 +68,12 @@ add_global_md_clustering<-function(loom
   unique.clusters<-sort(as.numeric(unique(seurat@ident))-1, decreasing = F)
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     if(is.null(annotation)) {
-      description<-paste("Cluster", annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.id.cl])
+      description<-paste("Not Annotated", "Cluster", annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.id.cl])
     } else {
       description<-cluster[[annotation.cluster.description.cl]]
       # If no annotation provided for the current cluster then just concat "Cluster" with the cluster ID
       if(nchar(cluster[[annotation.cluster.description.cl]])>0) {
-        description<-paste("Cluster",cluster[[annotation.cluster.id.cl]])
+        description<-paste("Not Annotated, Cluster",cluster[[annotation.cluster.id.cl]])
       }
     }
     return (list(id = cluster[[annotation.cluster.id.cl]]
@@ -258,9 +258,45 @@ add_scenic_regulons_auc_matrix<-function(loom
   add_col_attr(loom = loom, key = "RegulonsAUC", value = as.data.frame(x = t(regulons.AUC)))
 }
 
-##############################
-# Column Meta data functions #
-##############################
+###########################
+# Row Meta data functions #
+###########################
+
+#'
+#'@description Add the clustering markers as a row attribute to the given .loom file handler.
+#'@param loom           The loom file handler.
+#'@param dgem           A matrix of the gene expression with M genes as rows and N cells as columns.
+#'@param clustering.id  The clustering id that the given clustering.markers are specific for.
+#'@param regulons       A list of list of the clustering markers.
+#'
+add_clustering_markers<-function(loom
+                               , dgem
+                               , clustering.id
+                               , clustering.markers) {
+  clustering.markers.mask<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
+    cluster.name<-names(clustering.markers)[cluster.idx]
+    cluster.markers<-clustering.markers[cluster.idx]
+    cm.mask<-data.frame("x"=row.names(dgem)%in%cluster.markers, stringsAsFactors = F)
+    colnames(cm.mask)<-cluster.name
+    return (cm.mask)
+  }))
+  row.names(clustering.markers.mask)<-row.names(dgem)
+  add_row_attr(loom = loom, key = paste0("ClusteringMarkers_",clustering.id), value = as.data.frame(x = clustering.markers.mask))
+}
+
+#'
+#'@description Get the gene names either symbols or Flybase gene identifiers.
+#'@param loom           The loom file handler.
+#'@param is.flybase.gn  Whether to retrieve the Flybase gene identifiers or not.
+#'
+get_genes<-function(loom
+                    , is.flybase.gn = F) {
+  ra<-loom[["row_attrs"]]
+  if(is.flybase.gn) {
+    return (ra[["FBgn"]])
+  }
+  return (ra[["Gene"]][])
+}
 
 #'
 #'@description Add the Flybase gene as a row attribute to the given .loom file handler.
@@ -275,24 +311,6 @@ add_fbgn<-function(loom
   colnames(fbgn.gn.mapping)<-c("FBgn","Gene")
   genes<-merge(x = data.frame("Gene"=row.names(dgem)), y = fbgn.gn.mapping, by = "Gene")
   add_row_attr(loom = loom, key = "FBgn", value = genes$FBgn)
-}
-
-###########################
-# Row Meta data functions #
-###########################
-
-#'
-#'@description Get the gene names either symbols or Flybase gene identifiers.
-#'@param loom           The loom file handler.
-#'@param is.flybase.gn  Whether to retrieve the Flybase gene identifiers or not.
-#'
-get_genes<-function(loom
-                    , is.flybase.gn = F) {
-  ra<-loom[["row_attrs"]]
-  if(is.flybase.gn) {
-    return (ra[["FBgn"]])
-  }
-  return (ra[["Gene"]][])
 }
 
 #####################
