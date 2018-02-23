@@ -395,6 +395,21 @@ add_fbgn<-function(loom
 # Generic functions #
 #####################
 
+lookup_all_global_attr<-function(loom) {
+  list.attributes(object = loom)
+}
+
+remove_global_attr<-function(loom
+                             , key) {
+  loom$attr_delete(attr_name = key)
+  loom$flush()
+}
+
+get_global_attr<-function(loom
+                          , key) {
+  h5attr(x = loom, which = key)
+}
+
 #'
 #'@description Add a new global attribute to the given .loom object accessible by the given key and containing the given value.
 #'@param loom   The loom file handler.
@@ -503,11 +518,17 @@ finalize<-function(loom) {
 #'@param fbgn.gn.mapping.file.path  A N-by-2 data.frame containing the mapping between the Flybase gene and the gene symbol.
 #'
 build_loom<-function(file.name
+                     , title
+                     , genome
                      , dgem
                      , default.embedding
                      , default.embedding.name
                      , fbgn.gn.mapping.file.path) {
   loom<-H5File$new(filename = file.name, mode = "w")
+  # title
+  file.h5$create_attr(attr_name = "title", robj = title)
+  # Genome
+  file.h5$create_attr(attr_name = "Genome", robj = genome)
   cn<-colnames(dgem)
   rn<-row.names(dgem)
   print("Adding global attributes...")
@@ -537,6 +558,10 @@ build_loom<-function(file.name
   print("Adding layers...")
   layers<-loom$create_group("layers")
   loom$flush()
+}
+
+lookup_loom<-function(loom) {
+  loom$ls(recursive=TRUE)
 }
 
 open_loom<-function(file.path) {
