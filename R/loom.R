@@ -408,6 +408,12 @@ add_global_attr<-function(loom
   loom$flush()
 }
 
+remove_row_attr<-function(loom
+                          , key) {
+  loom$link_delete(name = paste0("row_attrs/", key))
+  loom$flush()
+}
+
 update_row_attr<-function(loom
                           , key
                           , value) {
@@ -439,6 +445,12 @@ get_col_attr_by_key<-function(loom
                             , key) {
   ca<-loom[["col_attrs"]]
   return (ca[[key]][])
+}
+
+remove_col_attr<-function(loom
+                          , key) {
+  loom$link_delete(name = paste0("col_attrs/", key))
+  loom$flush()
 }
 
 update_col_attr<-function(loom
