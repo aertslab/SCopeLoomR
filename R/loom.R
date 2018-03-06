@@ -495,10 +495,32 @@ add_col_attr<-function(loom
 #'@param dgem A matrix of the gene expression with M genes as rows and N cells as columns.
 #'
 add_matrix<-function(loom
-                     , dgem) {
+                     , dgem
+                     , chunk.size
+                     , display.progress) {
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
-  loom[["matrix"]]<-t(dgem)
+  dtype<-typeof(x = dgem[1, 1])
+  loom$create_dataset(
+    name = 'matrix',
+    dtype = dtype,
+    dims = dim(x = dgem)
+  )
+  chunk.points <- chunkPoints(
+    data.size = dim(x = dgem)[1],
+    chunk.size = chunk.size
+  )
+  if (display.progress) {
+    pb<-txtProgressBar(char = '=', style = 3)
+  }
+  for(col in 1:ncol(x = chunk.points)) {
+    row.start<-chunk.points[1, col]
+    row.end<-chunk.points[2, col]
+    loom[['matrix']][row.start:row.end, ]<-as.matrix(x = dgem[row.start:row.end, ])
+    if(display.progress) {
+      setTxtProgressBar(pb = pb, value = col / ncol(x = chunk.points))
+    }
+  }
   loom$flush()
 }
 
@@ -523,12 +545,14 @@ build_loom<-function(file.name
                      , dgem
                      , default.embedding
                      , default.embedding.name
-                     , fbgn.gn.mapping.file.path) {
+                     , fbgn.gn.mapping.file.path
+                     , chunk.size = 1000
+                     , display.progress = T) {
   loom<-H5File$new(filename = file.name, mode = "w")
   # title
-  file.h5$create_attr(attr_name = "title", robj = title)
+  loom$create_attr(attr_name = "title", robj = title)
   # Genome
-  file.h5$create_attr(attr_name = "Genome", robj = genome)
+  loom$create_attr(attr_name = "Genome", robj = genome)
   cn<-colnames(dgem)
   rn<-row.names(dgem)
   print("Adding global attributes...")
@@ -536,7 +560,7 @@ build_loom<-function(file.name
   init_global_meta_data(loom = loom)
   # matrix
   print("Adding matrix...")
-  add_matrix(loom = loom, dgem = t(dgem))
+  add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
   # col_attrs
   print("Adding column attributes...")
   loom$create_group("col_attrs")
