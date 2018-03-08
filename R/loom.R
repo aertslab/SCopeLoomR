@@ -515,16 +515,16 @@ add_matrix<-function(loom
     dims = dim(x = dgem)
   )
   chunk.points<-chunkPoints(
-    data.size = dim(x = dgem)[2],
+    data.size = dim(x = dgem)[1],
     chunk.size = chunk.size
   )
   if (display.progress) {
     pb<-txtProgressBar(char = '=', style = 3)
   }
   for(col in 1:ncol(x = chunk.points)) {
-    col.start<-chunk.points[1, col]
-    col.end<-chunk.points[2, col]
-    loom[['matrix']][, col.start:col.end]<-as.matrix(x = dgem[, col.start:col.end])
+    row.start<-chunk.points[1, col]
+    row.end<-chunk.points[2, col]
+    loom[['matrix']][, row.start:row.end]<-as.matrix(x = dgem[row.start:row.end, ])
     if(display.progress) {
       setTxtProgressBar(pb = pb, value = col / ncol(x = chunk.points))
     }
