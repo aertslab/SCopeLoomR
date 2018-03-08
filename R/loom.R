@@ -101,7 +101,7 @@ get_global_meta_data<-function(loom) {
 
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
-  h5attr(x = loom, which = "MetaData")<-meta.data.json
+  h5attr(x = loom, which = "MetaData")<-as.character(meta.data.json)
 }
 
 init_global_meta_data<-function(loom) {
@@ -110,9 +110,9 @@ init_global_meta_data<-function(loom) {
                 , clusterings = list())
   meta.data.json<-rjson::toJSON(meta.data)
   if(!("MetaData"%in%list.attributes(object = loom))) {
-    loom$create_attr(attr_name = "MetaData", robj = meta.data.json)
+    loom$create_attr(attr_name = "MetaData", robj = as.character(meta.data.json), dtype = H5T_STRING$new(size=Inf))
   } else {
-    update_global_meta_data(loom = loom, meta.data.json = meta.data.json)
+    update_global_meta_data(loom = loom, meta.data.json = as.character(meta.data.json), dtype = H5T_STRING$new(size=Inf))
   }
 }
 
@@ -133,7 +133,9 @@ add_embedding<-function(loom
                         , is.default = F) {
   coord.labels<-c("Embeddings_X", "Embeddings_Y")
   if(is.default) {
-    add_col_attr(loom = loom, key = "Embedding", value = as.data.frame(embedding))
+    embedding<-as.data.frame(embedding)
+    colnames(embedding)<-c("_X","_Y")
+    add_col_attr(loom = loom, key = "Embedding", value = embedding)
   } else {
     ca<-loom[["col_attrs"]]
     if(sum(c("Embeddings_X","Embeddings_Y")%in%names(ca)) != 2) {
@@ -419,7 +421,7 @@ get_global_attr<-function(loom
 add_global_attr<-function(loom
                           , key
                           , value) {
-  loom$create_attr(attr_name = key, robj = value)
+  loom$create_attr(attr_name = key, robj = value, dtype = getDtype(x = value))
   loom$flush()
 }
 
@@ -483,10 +485,14 @@ update_col_attr<-function(loom
 #'
 add_col_attr<-function(loom
                        , key
-                       , value) {
+                       , value
+                       , as.md.annotation = F) {
   ca<-loom[["col_attrs"]]
   ca[[key]]<-value
   loom$flush()
+  if(as.md.annotation) {
+    add_global_md_annotation(loom = loom, name = key, values = value)
+  }
 }
 
 #'
@@ -500,23 +506,25 @@ add_matrix<-function(loom
                      , display.progress) {
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
-  dtype<-typeof(x = dgem[1, 1])
+  # Transpose the matrix
+  dgem<-t(dgem)
+  dtype<-getDtype(x = dgem[1, 1])
   loom$create_dataset(
     name = 'matrix',
     dtype = dtype,
     dims = dim(x = dgem)
   )
-  chunk.points <- chunkPoints(
-    data.size = dim(x = dgem)[1],
+  chunk.points<-chunkPoints(
+    data.size = dim(x = dgem)[2],
     chunk.size = chunk.size
   )
   if (display.progress) {
     pb<-txtProgressBar(char = '=', style = 3)
   }
   for(col in 1:ncol(x = chunk.points)) {
-    row.start<-chunk.points[1, col]
-    row.end<-chunk.points[2, col]
-    loom[['matrix']][row.start:row.end, ]<-as.matrix(x = dgem[row.start:row.end, ])
+    col.start<-chunk.points[1, col]
+    col.end<-chunk.points[2, col]
+    loom[['matrix']][, col.start:col.end]<-as.matrix(x = dgem[, col.start:col.end])
     if(display.progress) {
       setTxtProgressBar(pb = pb, value = col / ncol(x = chunk.points))
     }
@@ -540,8 +548,8 @@ finalize<-function(loom) {
 #'@param fbgn.gn.mapping.file.path  A N-by-2 data.frame containing the mapping between the Flybase gene and the gene symbol.
 #'
 build_loom<-function(file.name
-                     , title
-                     , genome
+                     , title = NULL
+                     , genome = NULL
                      , dgem
                      , default.embedding
                      , default.embedding.name
@@ -550,15 +558,25 @@ build_loom<-function(file.name
                      , display.progress = T) {
   loom<-H5File$new(filename = file.name, mode = "w")
   # title
-  loom$create_attr(attr_name = "title", robj = title)
+  if(!is.null(title)) {
+    add_global_attr(loom = loom, key = "title", value = as.character(title))
+  }
   # Genome
-  loom$create_attr(attr_name = "Genome", robj = genome)
+  if(!is.null(genome)) {
+    add_global_attr(loom = loom, key = "Genome", value = as.character(genome))
+  }
   cn<-colnames(dgem)
   rn<-row.names(dgem)
   print("Adding global attributes...")
   # global MetaData attribute
   init_global_meta_data(loom = loom)
   # matrix
+  # Check the type of the sparse matrix
+  # convert to dgCMatrix if necessary to speedup populating the matrix slot
+  if(class(dgem) == "dgTMatrix") {
+    print("Converting to dgCMatrix...")
+    dgem<-as(object = dgem, Class = "dgCMatrix")
+  }
   print("Adding matrix...")
   add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
   # col_attrs
@@ -590,4 +608,49 @@ lookup_loom<-function(loom) {
 
 open_loom<-function(file.path) {
   return (H5File$new(file.path, mode="r+"))
+}
+
+# Utils (loomR)
+
+# Generate chunk points
+#
+# @param data.size How big is the data being chunked
+# @param chunk.size How big should each chunk be
+#
+# @return A matrix where each column is a chunk, row 1 is start points, row 2 is end points
+#
+chunkPoints<-function(data.size, chunk.size) {
+  return(vapply(
+    X = 1L:ceiling(data.size / chunk.size),
+    FUN = function(i) {
+      return(c(
+        start = (chunk.size * (i - 1L)) + 1L,
+        end = min(chunk.size * i, data.size)
+      ))
+    },
+    FUN.VALUE = numeric(length = 2L)
+  ))
+}
+
+# Get HDF5 data types
+#
+# @param x An R object or string describing HDF5 datatype
+#
+# @return The corresponding HDF5 data type
+#
+# @ rdname getDtype
+#
+#' @import hdf5r
+#
+# @seealso \code\link{hdf5r::h5types}
+#
+getDtype<-function(x) {
+  return(switch(
+    EXPR = class(x = x),
+    'numeric' = h5types$double,
+    'integer' = h5types$int,
+    'character' = H5T_STRING$new(size = Inf),
+    'logical' = H5T_LOGICAL$new(),
+    stop(paste("Unknown data type:", class(x = x)))
+  ))
 }
