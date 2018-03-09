@@ -17,12 +17,11 @@ add_global_md_annotation<-function(loom
                                  , name
                                  , values) {
   gmd<-get_global_meta_data(loom = loom)
-  a<-gmd["annotations"]
-  a[[length(a)+1]]<-list(name = name, values = unique(values))
+  a<-gmd[["annotations"]]
+  a[[length(a)+1]]<-list(name = name, values = as.character(unique(values)))
   gmd[["annotations"]]<-NULL
   gmd[["annotations"]]<-a
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
-  loom$flush
 }
 
 #'
@@ -112,7 +111,7 @@ init_global_meta_data<-function(loom) {
   if(!("MetaData"%in%list.attributes(object = loom))) {
     loom$create_attr(attr_name = "MetaData", robj = as.character(meta.data.json), dtype = H5T_STRING$new(size=Inf))
   } else {
-    update_global_meta_data(loom = loom, meta.data.json = as.character(meta.data.json), dtype = H5T_STRING$new(size=Inf))
+    update_global_meta_data(loom = loom, meta.data.json = as.character(meta.data.json))
   }
 }
 
@@ -156,7 +155,7 @@ add_embedding<-function(loom
     }
   }
   loom$flush()
-  # Ad the given embedding to the global attribute MetaData
+  # Add the given embedding to the global attribute MetaData
   add_global_md_embedding(loom = loom, name = name, is.default = is.default)
   loom$flush()
 }
@@ -492,6 +491,7 @@ add_col_attr<-function(loom
   loom$flush()
   if(as.md.annotation) {
     add_global_md_annotation(loom = loom, name = key, values = value)
+    loom$flush()
   }
 }
 
@@ -506,25 +506,24 @@ add_matrix<-function(loom
                      , display.progress) {
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
-  # Transpose the matrix
-  dgem<-t(dgem)
   dtype<-getDtype(x = dgem[1, 1])
   loom$create_dataset(
     name = 'matrix',
     dtype = dtype,
-    dims = dim(x = dgem)
+    dims = rev(x = dim(x = dgem))
   )
   chunk.points<-chunkPoints(
-    data.size = dim(x = dgem)[1],
+    data.size = dim(x = dgem)[2],
     chunk.size = chunk.size
   )
   if (display.progress) {
     pb<-txtProgressBar(char = '=', style = 3)
   }
   for(col in 1:ncol(x = chunk.points)) {
-    row.start<-chunk.points[1, col]
-    row.end<-chunk.points[2, col]
-    loom[['matrix']][, row.start:row.end]<-as.matrix(x = dgem[row.start:row.end, ])
+    col.start<-chunk.points[1, col]
+    col.end<-chunk.points[2, col]
+    # Transpose the matrix: cells as rows and genes as columnsf
+    loom[['matrix']][col.start:col.end, ]<-as.matrix(x = dgem[, col.start:col.end])
     if(display.progress) {
       setTxtProgressBar(pb = pb, value = col / ncol(x = chunk.points))
     }
