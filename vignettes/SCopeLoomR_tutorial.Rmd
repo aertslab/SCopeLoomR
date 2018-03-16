@@ -1,0 +1,148 @@
+---
+title: "SCopeLoomR tutorial"
+package: `r pkg_ver('SCopeLoomR')`
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  BiocStyle::html_document:
+    number_sections: no
+  html_notebook:
+    toc: yes
+  pdf_document:
+    toc: yes
+vignette: |
+  %\VignetteIndexEntry{SCopeLoomR} 
+  %\VignetteEncoding{UTF-8} 
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(SCopeLoomR)
+library(SingleCellExperiment)
+```
+
+# Introduction
+
+- TO DO
+
+# Installation
+For example:
+```{r install, eval=FALSE}
+devtools::install_github("aertlab/SCopeLoomR")
+# or install.packages("./SCopeLoomR_0.1.1.tar.gz", source=TRUE, repos=NULL)
+```
+
+# Creating a loom object
+
+
+## Load minimal information
+
+(minimum information required to create the object)
+
+```{r loadData}
+library(SCopeLoomR)
+library(SingleCellExperiment)
+data(sce) # e.g. a SingleCellExperiment 
+
+# DGEM (Digital gene expression matrix)
+dgem <- counts(sce)
+  dim(dgem)
+  class(dgem)
+  head(colnames(dgem))  #should contain the Cell ID/name
+
+# Known cell information/annotation  
+cellInfo <- colData(sce)
+cellInfo$nGene <- colSums(dgem>0)
+  head(cellInfo)
+
+# Default embedding (e.g. t-SNE or PCA coordinates)
+data(tSNE_expr)
+defaultTsne <- tSNE_expr
+defaultTsne_name <- "t-SNE on full expression matrix"
+head(defaultTsne)
+```
+
+## Create loom file 
+
+```{r createLoom}
+library(SCopeLoomR)
+
+### Create the minimal loom file
+fileName <- "example.loom"
+loom <- build_loom(file.name=fileName,
+                   dgem=dgem,
+                   title="Fake expression dataset for examples",
+                   genome="Mouse", # Just for user information, not used internally
+                   default.embedding=defaultTsne,
+                   default.embedding.name=defaultTsne_name)
+
+# Add annotation
+add_col_attr(loom=loom, key = "Cell type", value=cellInfo$cellType, as.md.annotation=T) # as.md.annotation: to plot on tSNE
+add_col_attr(loom=loom, key = "nGene", value=cellInfo$nGene)
+```
+
+## Add SCENIC results (Optional)
+
+*(Not run in this example)*
+
+```{r addSCENIC, eval=FALSE}
+scenicDir <- "./" # Modify if needed
+
+# Regulons AUC matrix
+library(AUCell)
+load(paste0(scenicDir, "int/3.2_regulonAUC.RData"), verbose=TRUE)
+regulonAUC <- updateAucellResults(regulonAUC)
+add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulonAUC))
+
+# Regulons (gene list)
+load(paste0(scenicDir, "int/3.0_regulons_forAUCell.RData"), verbose=TRUE)
+add_scenic_regulons(loom=loom, dgem=dgem, regulons=regulons)
+
+# Add regulons thresholds
+# add_global_md_regulon_thresholds(loom=loom, regulon.threshold.assignments=...$threshold.assignment)
+
+# Alternative t-SNE
+load(paste0(scenicDir, "int/3.3_tsneRegulonAUC_PCA_50pc50perpl.RData"))
+add_embedding(loom=loom, embedding=tSNE$Y, name="SCENIC (t-SNE on AUC)")
+```
+
+## Add SEURAT results (Optional)
+
+*(Not run in this example. You would need to use your own file names)*
+
+
+```{r addSEURAT, eval=FALSE}
+seuratDir <- "Seurat_output/"
+seurat.tsne <- readRDS(file = paste0(seuratDir, "seurat_tsne.rds.gz"))
+seurat <- readRDS(paste0(seuratDir, "seuratObject.rds.gz"))
+
+# Add extra embeddings
+add_embedding(loom=loom, embedding=seurat.tsne, name="Seurat 82PC, 30perp"))
+
+# Clusterings
+seurat.resolutions <- gsub(pattern = "FindClusters.res.", replacement = "",  x=names(seurat@calc.params)[grep(pattern = "FindClusters", x=names(seurat@calc.params))])
+seurat.markers.file.path.list<-do.call(what = "c", lapply(X=seurat.resolutions, FUN=function(resolution) {
+  l<-list()
+  l[paste0("res.",resolution)]<-paste0(paste0(seuratDir, "res.",resolution,"/Seurat_PC82_res",resolution,"_bimod_Cluster_Markers.rds.gz")
+  return (l)
+}))
+seurat.annotation<-read.table(file = paste0(seuratDir, "Res2_Clusters.tsv", header=T, quote = '', sep = "\t", stringsAsFactors=F)
+add_seurat_clustering(loom=loom
+                      , seurat=seurat
+                      , default.clustering.resolution = "res.2"
+                      , seurat.markers.file.path.list=seurat.markers.file.path.list
+                      , annotation=seurat.annotation
+                      , annotation.cluster.id.cl = "res.2"
+                      , annotation.cluster.description.cl = "Aggregated_Description") # Can be skipped
+```
+
+## Finalize (save)
+```{r finalize}
+finalize(loom=loom)
+```
+
+
+
+
