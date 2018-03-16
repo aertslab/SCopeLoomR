@@ -588,51 +588,60 @@ build_loom<-function(file.name
                      , chunk.size = 1000
                      , display.progress = T) {
   loom<-H5File$new(filename = file.name, mode = "w")
-  # title
-  if(!is.null(title)) {
-    add_global_attr(loom = loom, key = "title", value = as.character(title))
-  }
-  # Genome
-  if(!is.null(genome)) {
-    add_global_attr(loom = loom, key = "Genome", value = as.character(genome))
-  }
-  cn<-colnames(dgem)
-  rn<-row.names(dgem)
-  print("Adding global attributes...")
-  # global MetaData attribute
-  init_global_meta_data(loom = loom)
-  # matrix
-  # Check the type of the sparse matrix
-  # convert to dgCMatrix if necessary to speedup populating the matrix slot
-  if(class(dgem) == "dgTMatrix") {
-    print("Converting to dgCMatrix...")
-    dgem<-as(object = dgem, Class = "dgCMatrix")
-  }
-  print("Adding matrix...")
-  add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
-  # col_attrs
-  print("Adding column attributes...")
-  loom$create_group("col_attrs")
-  add_col_attr(loom = loom, key = "CellID", value = as.character(cn))
-  # Add the default embedding
-  add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
-  # row_attrs
-  print("Adding row attributes...")
-  loom$create_group("row_attrs")
-  add_row_attr(loom = loom, key = "Gene", value = as.character(rn))
-  # Check if Flybase gene mapping is not empty
-  if(!is.null(fbgn.gn.mapping.file.path)) {
-    add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)
-  }
-  # col_edges
-  print("Adding columns edges...")
-  col.edges<-loom$create_group("col_edges")
-  # row_edges
-  print("Adding row edges...")
-  row.edges<-loom$create_group("row_edges")
-  # layers
-  print("Adding layers...")
-  layers<-loom$create_group("layers")
+  tryCatch({
+    # title
+    if(!is.null(title)) {
+      add_global_attr(loom = loom, key = "title", value = as.character(title))
+    }
+    # Genome
+    if(!is.null(genome)) {
+      add_global_attr(loom = loom, key = "Genome", value = as.character(genome))
+    }
+    cn<-colnames(dgem)
+    rn<-row.names(dgem)
+    print("Adding global attributes...")
+    # global MetaData attribute
+    init_global_meta_data(loom = loom)
+    # matrix
+    # Check the type of the sparse matrix
+    # convert to dgCMatrix if necessary to speedup populating the matrix slot
+    if(class(dgem) == "dgTMatrix") {
+      print("Converting to dgCMatrix...")
+      dgem<-as(object = dgem, Class = "dgCMatrix")
+    }
+    print("Adding matrix...")
+    add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
+    # col_attrs
+    print("Adding column attributes...")
+    loom$create_group("col_attrs")
+    add_col_attr(loom = loom, key = "CellID", value = as.character(cn))
+    # Add the default embedding
+    add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
+    # row_attrs
+    print("Adding row attributes...")
+    loom$create_group("row_attrs")
+    add_row_attr(loom = loom, key = "Gene", value = as.character(rn))
+    # Check if Flybase gene mapping is not empty
+    if(!is.null(fbgn.gn.mapping.file.path)) {
+      add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)
+    }
+    # col_edges
+    print("Adding columns edges...")
+    col.edges<-loom$create_group("col_edges")
+    # row_edges
+    print("Adding row edges...")
+    row.edges<-loom$create_group("row_edges")
+    # layers
+    print("Adding layers...")
+    layers<-loom$create_group("layers")
+  }, error = function(e) {
+    loom$flush()
+    loom$close()
+    stop(e)
+
+  }, finally = {
+    loom$flush()
+  })
   loom$flush()
 }
 
