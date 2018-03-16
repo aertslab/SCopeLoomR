@@ -217,7 +217,7 @@ add_seurat_clustering<-function(loom
                                 , annotation.cluster.description.cl) {
   clustering.resolutions<-as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2])
   for(res in clustering.resolutions) {
-    seurat<-SetAllIdent(object = seurat, id = paste0("res.",res))
+    seurat<-seurat::SetAllIdent(object=seurat, id=paste0("res.",res))
     cluster.ids<-seurat@ident
     is.default.clustering<-F
     # Add the Seurat clusters
@@ -258,7 +258,9 @@ add_seurat_clustering<-function(loom
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
 #'@param loom                               The loom file handler.
 #'@param group                              The for the given clustering group to which the given clusters have to be added
+#'@param name
 #'@param clusters                           A list of the the cluster id for each cell present in the matrix
+#'@param is.default 
 #'@param annotation                         A data.frame with annotation for the clusters
 #'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
@@ -421,7 +423,7 @@ get_genes<-function(loom
 add_fbgn<-function(loom
                    , dgem
                    , fbgn.gn.mapping.file.path) {
-  fbgn.gn.mapping<-read.table(file = fbgn.gn.mapping.file.path, header = F, sep = "\t", quote = '', stringsAsFactors = F)
+  fbgn.gn.mapping<-utils::read.table(file = fbgn.gn.mapping.file.path, header = F, sep = "\t", quote = '', stringsAsFactors = F)
   colnames(fbgn.gn.mapping)<-c("FBgn","Gene")
   genes<-merge(x = data.frame("Gene"=row.names(dgem)), y = fbgn.gn.mapping, by = "Gene")
   add_row_attr(loom = loom, key = "FBgn", value = genes$FBgn)
@@ -563,7 +565,7 @@ add_matrix<-function(loom
     chunk.size = chunk.size
   )
   if (display.progress) {
-    pb<-txtProgressBar(char = '=', style = 3)
+    pb<-utils::txtProgressBar(char = '=', style = 3)
   }
 
   for (col in 1:ncol(x = chunk.points)) {
@@ -571,7 +573,7 @@ add_matrix<-function(loom
     row.end <- chunk.points[2, col]
     loom[['matrix']][row.start:row.end, ] <- t(x = as.matrix(x = dgem[, row.start:row.end]))
     if(display.progress) {
-      setTxtProgressBar(pb = pb, value = col / ncol(x = chunk.points))
+      utils::setTxtProgressBar(pb = pb, value = col / ncol(x = chunk.points))
     }
   }
   loom$flush()
@@ -622,7 +624,7 @@ build_loom<-function(file.name
     # convert to dgCMatrix if necessary to speedup populating the matrix slot
     if(class(dgem) == "dgTMatrix") {
       print("Converting to dgCMatrix...")
-      dgem<-as(object = dgem, Class = "dgCMatrix")
+      dgem<-methods::as(object = dgem, Class = "dgCMatrix")
     }
     print("Adding matrix...")
     add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
