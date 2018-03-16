@@ -7,7 +7,7 @@
 #' @keywords data
 "sce"
 
-#' @title tSNE_expr
+#' @title tSNE example
 #' @name tSNE_expr
 #' @description t-SNE for the expression matrix
 #' @docType data
