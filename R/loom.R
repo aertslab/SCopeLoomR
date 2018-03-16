@@ -108,8 +108,8 @@ add_global_md_regulon_thresholds<-function(loom
       return (l)
     }))
     AUC.selected.threshold<-rta$aucThr$selected
-    regulon.tresholds<-list(regulon = regulon, # n clusterings
-                            defaultThresholdValue = AUC.selected.threshold[names(AUC.selected.threshold)],
+    regulon.tresholds<-list(regulon = gsub(pattern = " ", replacement = "_", x = regulon),
+                            defaultThresholdValue = as.numeric(AUC.selected.threshold),
                             defaultThresholdName = names(AUC.selected.threshold),
                             allThresholds = allThresholds)
     rT[[length(rT)+1]]<-regulon.tresholds
@@ -584,7 +584,7 @@ build_loom<-function(file.name
                      , dgem
                      , default.embedding
                      , default.embedding.name
-                     , fbgn.gn.mapping.file.path
+                     , fbgn.gn.mapping.file.path = NULL
                      , chunk.size = 1000
                      , display.progress = T) {
   loom<-H5File$new(filename = file.name, mode = "w")
@@ -620,7 +620,10 @@ build_loom<-function(file.name
   print("Adding row attributes...")
   loom$create_group("row_attrs")
   add_row_attr(loom = loom, key = "Gene", value = as.character(rn))
-  add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)
+  # Check if Flybase gene mapping is not empty
+  if(!is.null(fbgn.gn.mapping.file.path)) {
+    add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)
+  }
   # col_edges
   print("Adding columns edges...")
   col.edges<-loom$create_group("col_edges")
