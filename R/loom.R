@@ -126,13 +126,14 @@ add_global_md_regulon_thresholds<-function(loom
 #'@param loom The loom file handler.
 #'@export
 get_global_meta_data<-function(loom) {
-  return (rjson::fromJSON(json_str = h5attr(x = loom, which = "MetaData")))
+  meta.data<-decompress_gzb64(gzb64c = h5attr(x = loom, which = "MetaData"))
+  return (rjson::fromJSON(json_str = meta.data))
 }
 
-#'@export
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
-  h5attr(x = loom, which = "MetaData")<-as.character(meta.data.json)
+  compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
+  h5attr(x = loom, which = "MetaData")<-compressed.meta.data
 }
 
 #'@export
@@ -260,7 +261,7 @@ add_seurat_clustering<-function(loom
 #'@param group                              The for the given clustering group to which the given clusters have to be added
 #'@param name
 #'@param clusters                           A list of the the cluster id for each cell present in the matrix
-#'@param is.default 
+#'@param is.default
 #'@param annotation                         A data.frame with annotation for the clusters
 #'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
@@ -670,6 +671,18 @@ lookup_loom<-function(loom) {
 #'@export
 open_loom<-function(file.path) {
   return (H5File$new(file.path, mode="r+"))
+}
+
+##############################
+# Utils                      #
+##############################
+
+compress_gzb64<-function(c) {
+  return (base64encode(x = memCompress(from = c, type = "gzip")))
+}
+
+decompress_gzb64<-function(gzb64c) {
+  return (rawToChar(memDecompress(from = base64decode(z = meta.data, what = "raw"), type = "gzip", asChar = F), multiple = F))
 }
 
 ###########################
