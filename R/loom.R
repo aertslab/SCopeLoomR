@@ -24,6 +24,17 @@ add_global_md_annotation<-function(loom
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
+#'@title init_global_md_embeddings
+#'@description  Remove all embeddings from the given loom
+#'@param loom   The loom file handler.
+#'@export
+init_global_md_embeddings<-function(loom) {
+  gmd<-get_global_meta_data(loom = loom)
+  gmd[["embeddings"]]<-NULL
+  gmd[["embeddings"]]<-list()
+  update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
+}
+
 #'@title add_global_md_embedding
 #'@description  Add the embedding with the given name to the global MetaData attribute.
 #'@param loom       The loom file handler.
@@ -175,14 +186,14 @@ add_embedding<-function(loom
     if(sum(c("Embeddings_X","Embeddings_Y")%in%names(ca)) != 2) {
       for(i in seq_along(coord.labels)) {
         e<-as.data.frame(embedding[,i])
-        colnames(e)<-"_0"
+        colnames(e)<-"0"
         add_col_attr(loom = loom, key = coord.labels[i], value = e)
       }
     } else {
       for(i in seq_along(coord.labels)) {
         ca.embeddings<-get_col_attr_by_key(loom = loom, key = coord.labels[i])
         e<-as.data.frame(embedding[,i])
-        colnames(e)<-paste0("_",ncol(ca.embeddings))
+        colnames(e)<-paste0(ncol(ca.embeddings))
         ca.embeddings<-cbind(ca.embeddings, e)
         # Update the current coordinates Embeddings
         update_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(ca.embeddings))
@@ -678,11 +689,11 @@ open_loom<-function(file.path) {
 ##############################
 
 compress_gzb64<-function(c) {
-  return (base64encode(x = memCompress(from = c, type = "gzip")))
+  return (base64encode(what = memCompress(from = c, type = "gzip")))
 }
 
 decompress_gzb64<-function(gzb64c) {
-  return (rawToChar(memDecompress(from = base64decode(z = meta.data, what = "raw"), type = "gzip", asChar = F), multiple = F))
+  return (rawToChar(memDecompress(from = base64decode(what = gzb64c), type = "gzip", asChar = F), multiple = F))
 }
 
 ###########################
