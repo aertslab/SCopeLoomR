@@ -155,7 +155,8 @@ init_global_meta_data<-function(loom) {
                 , regulonThresholds = list())
   meta.data.json<-rjson::toJSON(meta.data)
   if(!("MetaData"%in%list.attributes(object = loom))) {
-    loom$create_attr(attr_name = "MetaData", robj = as.character(meta.data.json), dtype = H5T_STRING$new(size=Inf))
+    compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
+    loom$create_attr(attr_name = "MetaData", robj = as.character(compressed.meta.data), dtype = H5T_STRING$new(size=Inf))
   } else {
     update_global_meta_data(loom = loom, meta.data.json = as.character(meta.data.json))
   }
@@ -644,6 +645,7 @@ build_loom<-function(file.name
     print("Adding column attributes...")
     loom$create_group("col_attrs")
     add_col_attr(loom = loom, key = "CellID", value = as.character(cn))
+    print("Adding default embedding...")
     # Add the default embedding
     add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
     # row_attrs
