@@ -3,7 +3,7 @@
 \docType{data}
 \name{tSNE_expr}
 \alias{tSNE_expr}
-\title{tSNE_expr}
+\title{tSNE example}
 \format{An object of class \code{matrix} with 100 rows and 2 columns.}
 \usage{
 tSNE_expr

@@ -1,13 +1,13 @@
 Package: SCopeLoomR
 Type: Package
 Title: Create .loom Files for SCope
-Version: 0.1.1
+Version: 0.0.2
 Author: M.D.W
 Maintainer: M.D.W <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files 
     aligning with the default naming convention and 
     to integrate other data types e.g.: regulons (SCENIC), clusters from Seurat, ...
-Imports: hdf5r, rjson, utils, methods
+Imports: hdf5r, rjson, utils, methods, caTools, base, base64enc
 Suggests: seurat, stringr
 License: Apache-2
 Encoding: UTF-8

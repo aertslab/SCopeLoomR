@@ -15,8 +15,6 @@ add_clustering(loom, group, name, clusters, is.default = F,
 
 \item{clusters}{A list of the the cluster id for each cell present in the matrix}
 
-\item{is.default}{}
-
 \item{annotation}{A data.frame with annotation for the clusters}
 
 \item{annotation.cluster.id.cl}{The column name to use for the IDs of the clusters found by the given clustering group.}
