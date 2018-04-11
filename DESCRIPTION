@@ -7,7 +7,7 @@ Maintainer: M.D.W <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files 
     aligning with the default naming convention and 
     to integrate other data types e.g.: regulons (SCENIC), clusters from Seurat, ...
-Imports: hdf5r, rjson, utils, methods, caTools, base, base64enc
+Imports: hdf5r, rjson, utils, methods, base, base64enc
 Suggests: seurat, stringr
 License: Apache-2
 Encoding: UTF-8

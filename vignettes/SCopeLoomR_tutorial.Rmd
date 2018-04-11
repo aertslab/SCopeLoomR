@@ -31,17 +31,17 @@ library(SingleCellExperiment)
 For example:
 ```{r install, eval=FALSE}
 devtools::install_github("aertlab/SCopeLoomR")
-# or install.packages("./SCopeLoomR_0.1.1.tar.gz", source=TRUE, repos=NULL)
+# or install.packages("./SCopeLoomR_0.0.2.tar.gz", source=TRUE, repos=NULL)
 ```
 
 # Creating a loom object
-
 
 ## Load minimal information
 
 (minimum information required to create the object)
 
 ```{r loadData}
+library(hdf5r, rjson, utils, methods, base, base64enc) # if installed from source file (SCopeLoomR_0.0.2.tar.gz)
 library(SCopeLoomR)
 library(SingleCellExperiment)
 data(sce) # e.g. a SingleCellExperiment 

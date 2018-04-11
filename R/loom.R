@@ -689,11 +689,11 @@ open_loom<-function(file.path) {
 ##############################
 
 compress_gzb64<-function(c) {
-  return (base64encode(what = memCompress(from = c, type = "gzip")))
+  return (base64enc::base64encode(what = memCompress(from = c, type = "gzip")))
 }
 
 decompress_gzb64<-function(gzb64c) {
-  return (rawToChar(memDecompress(from = base64decode(what = gzb64c), type = "gzip", asChar = F), multiple = F))
+  return (rawToChar(memDecompress(from = base64enc::base64decode(what = gzb64c), type = "gzip", asChar = F), multiple = F))
 }
 
 ###########################
