@@ -4,7 +4,9 @@
 \alias{add_embedding}
 \title{add_embedding}
 \usage{
-add_embedding(loom, embedding, name, is.default = F)
+add_embedding(loom, embedding, name, is.default = F,
+  parent.clustering.id = NULL, parent.clustering.id.lookup.query = NULL,
+  cluster.id = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -13,7 +15,7 @@ add_embedding(loom, embedding, name, is.default = F)
 
 \item{name}{The name of the given embedding.}
 
-\item{is.default}{Is the given embedding the default embedding to use in the .loom file.}
+\item{is.default}{Default embedding to use in the .loom file.}
 }
 \description{
 Add the given embedding as a row attribute and meta data related to the given embeddding to the given .loom file handler.

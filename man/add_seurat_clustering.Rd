@@ -5,7 +5,8 @@
 \title{add_seurat_clustering}
 \usage{
 add_seurat_clustering(loom, seurat, default.clustering.resolution,
-  seurat.markers.file.path.list, annotation, annotation.cluster.id.cl,
+  seurat.markers.file.path.list, seurat.clustering.level,
+  parent.seurat.clustering.resolution, annotation, annotation.cluster.id.cl,
   annotation.cluster.description.cl)
 }
 \arguments{

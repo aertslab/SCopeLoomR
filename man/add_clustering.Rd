@@ -4,16 +4,22 @@
 \alias{add_clustering}
 \title{add_clustering}
 \usage{
-add_clustering(loom, group, name, clusters, is.default = F,
-  annotation = NULL, annotation.cluster.id.cl = NULL,
-  annotation.cluster.description.cl = NULL)
+add_clustering(loom, group, name, params, clusters, level = 0,
+  parent.clustering.id = NULL, is.default = F, annotation = NULL,
+  annotation.cluster.id.cl = NULL, annotation.cluster.description.cl = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
 
 \item{group}{The for the given clustering group to which the given clusters have to be added}
 
-\item{clusters}{A list of the the cluster id for each cell present in the matrix}
+\item{name}{The name given to this clustering}
+
+\item{clusters}{A named list of the cell id and assigned the cluster id.}
+
+\item{parent.clustering.id}{Clustering ID of the parent in case it's a subclustering.}
+
+\item{is.default}{Set this clustering be set as default one.}
 
 \item{annotation}{A data.frame with annotation for the clusters}
 

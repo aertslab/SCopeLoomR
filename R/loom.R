@@ -24,6 +24,18 @@ add_global_md_annotation<-function(loom
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
+#'@title sub_embedding_group_exists
+#'@description  Check whether a sub embedding group of the given parent.clustering.id exists in the MetaData
+#'@param parent.clustering.id The id of the parent clustering
+#'@export
+sub_embedding_group_exists<-function(parent.clustering.id) {
+  gmd<-get_global_meta_data(loom = loom)
+  e<-gmd[["embeddings"]]
+  x<-sapply(e, function(x) { x['parentClusteringId'] == parent.clustering.id })
+  return (is.na(match(TRUE,x)))
+}
+
+
 #'@title init_global_md_embeddings
 #'@description  Remove all embeddings from the given loom
 #'@param loom   The loom file handler.
@@ -42,19 +54,42 @@ init_global_md_embeddings<-function(loom) {
 #'@param is.default Is the given embedding the default embedding to use in the .loom file.
 #'@export
 add_global_md_embedding<-function(loom
+                                , id
                                 , name
-                                , is.default = F) {
+                                , is.default = F
+                                , parent.clustering.id = NULL
+                                , cluster.id = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   e<-gmd[["embeddings"]]
   if(is.default) {
-    id<-(-1)
+    default<-"true"
   } else {
-    id<-length(e)-1
+    default<-"false"
   }
-  e[[length(e)+1]]<-list(id = id, name = name)
+  
+  if(is.null(parent.clustering.id)) {
+    parent.clustering.id<-(-1) # By default set to all cells
+  }
+  if(is.null(cluster.id)) {
+    cluster.id<-(-1) # By default set to all cells
+  }
+  
+  e[[length(e)+1]]<-list(id = id, name = name, parentClusteringId = parent.clustering.id, clusterId = cluster.id, default = default)
   gmd[["embeddings"]]<-NULL
   gmd[["embeddings"]]<-e
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
+}
+
+
+#'@title sub_clustering_exists
+#'@description  Check whether a sub clustering of the given parent.clustering.id exists in the MetaData
+#'@param parent.clustering.id The clustering id of the parent
+#'@export
+sub_clustering_exists<-function(parent.clustering.id) {
+  gmd<-get_global_meta_data(loom = loom)
+  c<-gmd[["clusterings"]]
+  x<-sapply(c, function(x) { x['parentClusteringId'] == parent.clustering.id })
+  return (is.na(match(TRUE,x)))
 }
 
 #'@title add_global_md_clustering
@@ -67,15 +102,19 @@ add_global_md_embedding<-function(loom
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
 #'@export
 add_global_md_clustering<-function(loom
+                                 , id 
+                                 , level = 0
                                  , group
                                  , name
+                                 , params
+                                 , parent.clustering.id = NULL
                                  , clusters
                                  , annotation = NULL
                                  , annotation.cluster.id.cl = NULL
                                  , annotation.cluster.description.cl = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[["clusterings"]]
-  unique.clusters<-sort(as.numeric(unique(seurat@ident))-1, decreasing = F)
+  unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     description<-paste("NDA - Cluster", cluster.id)
     if(!is.null(annotation)) {
@@ -90,10 +129,17 @@ add_global_md_clustering<-function(loom
   })
   ca<-loom[["col_attrs"]]
   clusterings<-ca[["Clusterings"]][]
-  clustering<-list(id = ncol(clusterings)+1, # n clusterings
-                   group = group,
-                   name = name,
-                   clusters = clusters)
+  # Check if sub-clustering
+  if(is.null(parent.clustering.id)) {
+    parent.clustering.id<-(-1)
+  }
+  clustering<-list(id = id
+                 , level = level
+                 , parentClusteringId = parent.clustering.id
+                 , group = group
+                 , name = name
+                 , params = params
+                 , clusters = clusters)
   c[[length(c)+1]]<-clustering
   gmd[["clusterings"]]<-NULL
   gmd[["clusterings"]]<-c
@@ -180,35 +226,106 @@ init_global_meta_data<-function(loom) {
 # Embedding functions #
 #######################
 
+sub_embedding_exists<-function(loom, id, embedding) {
+  # Only test on X (it should be true for Y)
+  ca.embeddings.x<-get_col_attr_by_key(loom = loom, key = "Embeddings_X")
+  # Retrieve sub embedding groups with the given id
+  ca.embeddings.x.ss<-ca.embeddings.x[, grepl(pattern = paste0("^",id,"_[0-9]+"), x = colnames(ca.embeddings.x))]
+  # By default set the embedding group id to store the given embedding to N (start at 0) 
+  se.group.id<-ncol(ca.embeddings.x.ss)
+  for(i in 1:ncol(ca.embeddings.x.ss)) {
+    tmp<-ca.embeddings.x.ss[,i]
+    # Check if cell embeddings are set in the current embedding group
+    nb.es<-tmp[cell.ids%in%row.names(embedding)] == -1
+    if(sum(nb.es) == nrow(embedding)) {
+      return (i)
+    }
+  }
+  return (se.group.id)
+}
+
+add_default_embedding<-function(loom, embedding) {
+  embedding<-as.data.frame(embedding)
+  colnames(embedding)<-c("_X","_Y")
+  add_col_attr(loom = loom, key = "Embedding", value = embedding)
+}
+
+append_embedding_group_update_ca<-function(loom
+                                      , embedding
+                                      , embedding.group.id
+                                      , coord.labels) {
+  cell.ids<-get_cells(loom = loom)
+  for(i in seq_along(coord.labels)) {
+    ca.embeddings<-get_col_attr_by_key(loom = loom, key = coord.labels[i])
+    sub.embedding<-data.frame(x = rep(-1, nrow(ca.embeddings)))
+    sub.embedding[cell.ids%in%row.names(embedding)]<-embedding[,i]
+    # Update the embedding
+    colnames(e)<-embedding.group.id
+    ca.embeddings<-cbind(ca.embeddings, e)
+    # Update the current coordinates Embeddings
+    update_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(ca.embeddings))
+  }
+}
+
 #'@title add_embedding
 #'@description Add the given embedding as a row attribute and meta data related to the given embeddding to the given .loom file handler.
 #'@param loom       The loom file handler.
 #'@param embedding  A M-by-2 data.frame of the embeddings with M cells.
 #'@param name       The name of the given embedding.
-#'@param is.default Is the given embedding the default embedding to use in the .loom file.
+#'@param is.default Default embedding to use in the .loom file.
 #'@export
 add_embedding<-function(loom
                         , embedding
                         , name
-                        , is.default = F) {
+                        , is.default = F
+                        , parent.clustering.id = NULL
+                        , parent.clustering.id.lookup.query = NULL # list("level"=0, "group"="Seurat", "param.name"="", "param.value"="")
+                        , cluster.id = NULL) {
   coord.labels<-c("Embeddings_X", "Embeddings_Y")
-  if(is.default) {
-    embedding<-as.data.frame(embedding)
-    colnames(embedding)<-c("_X","_Y")
-    add_col_attr(loom = loom, key = "Embedding", value = embedding)
+  # Check if default and not a sub-cluster embedding
+  # Add the default embedding also to Embeddings_X and Embeddings_Y
+  if(is.default & is.null(parent.clustering.id) & is.null(cluster.id)) {
+    add_default_embedding(loom = loom, embedding = embedding)
+  }
+  
+  ca<-loom[["col_attrs"]]
+  
+  if(!is.null(parent.clustering.id)) {
+    # Add a sub embedding
+    if(is.null(parent.clustering.id)) {
+      # Get parent clustering id based on the given look-up query
+      parent.clustering.id<-get_clid_by_clustering_param(loom = loom
+                                                       , clustering.level = parent.clustering.id.lookup.query["level"]
+                                                       , clustering.group = parent.clustering.id.lookup.query["group"]
+                                                       , clustering.param.name = parent.clustering.id.lookup.query["param.name"]
+                                                       , clustering.param.value = parent.clustering.id.lookup.query["param.value"])
+    }
+    id<-paste0(parent.clustering.id,"_sub")
+    cell.ids<-get_cells(loom = loom)
+    # Check if the sub embedding already exists given the parent.clustering.id
+    if(sub_embedding_group_exists(parent.clustering.id)) {
+      # Get the next sub embedding group id slot
+      se.group.suffix<-sub_embedding_exists(loom = loom, id = id, embedding = embedding)
+      id<-paste0(id,"_",se.group.suffix)
+    } else {
+      id<-paste0(id,"_0")
+    }
+    append_embedding_group_update_ca(loom = loom, embedding = embedding, embedding.group.id = id, coord.labels = coord.labels)
   } else {
-    ca<-loom[["col_attrs"]]
-    if(sum(c("Embeddings_X","Embeddings_Y")%in%names(ca)) != 2) {
+    # Add a main embedding
+    if(sum(coord.labels%in%names(ca)) != 2) {
       for(i in seq_along(coord.labels)) {
         e<-as.data.frame(embedding[,i])
-        colnames(e)<-"0"
+        id<-"0"
+        colnames(e)<-id
         add_col_attr(loom = loom, key = coord.labels[i], value = e)
       }
     } else {
       for(i in seq_along(coord.labels)) {
         ca.embeddings<-get_col_attr_by_key(loom = loom, key = coord.labels[i])
         e<-as.data.frame(embedding[,i])
-        colnames(e)<-paste0(ncol(ca.embeddings))
+        id<-as.character(ncol(ca.embeddings))
+        colnames(e)<-id
         ca.embeddings<-cbind(ca.embeddings, e)
         # Update the current coordinates Embeddings
         update_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(ca.embeddings))
@@ -217,13 +334,38 @@ add_embedding<-function(loom
   }
   loom$flush()
   # Add the given embedding to the global attribute MetaData
-  add_global_md_embedding(loom = loom, name = name, is.default = is.default)
+  add_global_md_embedding(loom = loom
+                          , id = id
+                          , name = name
+                          , is.default = is.default
+                          , parent.clustering.id = parent.clustering.id
+                          , cluster.id = cluster.id)
   loom$flush()
 }
 
 #########################
 # Clusterings functions #
 #########################
+
+get_clid_by_clustering_param<-function(loom
+                                         , clustering.level
+                                         , clustering.group
+                                         , clustering.param.name
+                                         , clustering.param.value) {
+  ca<-loom[["col_attrs"]]
+  ca.clusterings<-ca[['Clusterings']][]
+  gmd<-get_global_meta_data(loom = loom)
+  c<-gmd[["clusterings"]]
+  x<-sapply(c, function(x) { 
+    x['params'][[clustering.param.name]] == clustering.param.value &
+      x['level'] == clustering.level &
+      x['group'] == clustering.group
+  })
+  clid<-colnames(ca.clusterings)[x]
+  if(length(clid) != 1) {
+    stop(paste0("The clustering with param '", paste(clustering.param.name, clustering.param.value),"' do not exist."))
+  }
+}
 
 #'@title add_seurat_clustering
 #'@description Add all the Seurat clusterings in the given seurat object to the given .loom file handler.
@@ -239,9 +381,17 @@ add_seurat_clustering<-function(loom
                                 , seurat
                                 , default.clustering.resolution
                                 , seurat.markers.file.path.list
+                                , seurat.clustering.level
+                                , parent.seurat.clustering.resolution
                                 , annotation
                                 , annotation.cluster.id.cl
                                 , annotation.cluster.description.cl) {
+  # Get parent clustering id based on parent Seurat clustering resolution
+  parent.seurat.clustering.id<-get_clid_by_clustering_param(loom = loom
+                                                          , clustering.level = seurat.clustering.level
+                                                          , clustering.group = "Seurat"
+                                                          , clustering.param.name = "resolution"
+                                                          , clustering.param.value = parent.seurat.clustering.resolution)
   clustering.resolutions<-as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2])
   for(res in clustering.resolutions) {
     seurat<-seurat::SetAllIdent(object=seurat, id=paste0("res.",res))
@@ -260,14 +410,17 @@ add_seurat_clustering<-function(loom
       is.default.clustering<-T
     }
     loom$flush()
-    add_clustering(loom = loom
-                   , group = "Seurat"
-                   , name = paste("Seurat, resolution",res)
-                   , clusters = cluster.ids
-                   , is.default = is.default.clustering
-                   , annotation = a
-                   , annotation.cluster.id.cl = ac.id.cl
-                   , annotation.cluster.description.cl = ac.description.cl)
+    clid<-add_clustering(loom = loom
+                       , group = "Seurat"
+                       , name = paste("Seurat, resolution",res)
+                       , params = list("resolution"=res)
+                       , clusters = cluster.ids
+                       , clustering.level = seurat.clustering.level
+                       , parent.clustering.id = parent.seurat.clustering.id
+                       , is.default = is.default.clustering
+                       , annotation = a
+                       , annotation.cluster.id.cl = ac.id.cl
+                       , annotation.cluster.description.cl = ac.description.cl)
     loom$flush()
     # Add the Seurat markers
     print("Adding Seurat markers...")
@@ -276,18 +429,30 @@ add_seurat_clustering<-function(loom
     seurat.m.list<-lapply(X = seurat.m.list, function(cluster) {
       return (cluster$gene)
     })
-    add_clustering_markers(loom = loom, clustering.id = res, clustering.markers = seurat.m.list)
+    add_clustering_markers(loom = loom, clustering.id = clid, clustering.markers = seurat.m.list)
     loom$flush()
   }
+}
+
+append_clustering_update_ca<-function(loom
+                                      , clustering.id
+                                      , clustering) {
+  k<-"Clusterings"
+  ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
+  colnames(clustering)<-clustering.id
+  # Append this clustering
+  ca.clusterings<-cbind(ca.clusterings, clustering)
+  update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
 }
 
 #'@title add_clustering
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
 #'@param loom                               The loom file handler.
 #'@param group                              The for the given clustering group to which the given clusters have to be added
-#'@param name
-#'@param clusters                           A list of the the cluster id for each cell present in the matrix
-#'@param is.default
+#'@param name                               The name given to this clustering
+#'@param parent.clustering.id               Clustering ID of the parent in case it's a subclustering.
+#'@param clusters                           A named list of the cell id and assigned the cluster id.
+#'@param is.default                         Set this clustering be set as default one.
 #'@param annotation                         A data.frame with annotation for the clusters
 #'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
@@ -295,11 +460,15 @@ add_seurat_clustering<-function(loom
 add_clustering<-function(loom
                          , group
                          , name
+                         , params
                          , clusters
+                         , level = 0
+                         , parent.clustering.id = NULL
                          , is.default = F
                          , annotation = NULL
                          , annotation.cluster.id.cl =  NULL
                          , annotation.cluster.description.cl = NULL) {
+  id<-0
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
@@ -320,10 +489,25 @@ add_clustering<-function(loom
   if(col_attrs_exists_by_key(loom = loom, key = k)) {
     print("Clusterings already exists...")
     ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
-    clustering<-data.frame(x = clusters)
-    colnames(clustering)<-as.character(ncol(ca.clusterings)+1)
-    ca.clusterings<-cbind(ca.clusterings, clustering)
-    update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
+    # Set the clustering id
+    id<-ncol(ca.clusterings)+1 # n clusterings
+    # Check if we are adding a sub clustering
+    if(!is.null(parent.clustering.id)) {
+      id<-paste0(parent.clustering.id,"_sub")
+      cell.ids<-get_cells(loom = loom)
+      # Check if the sub clustering already exists given the parent.clustering.id
+      if(sub_clustering_exists(parent.clustering.id)) {
+        ca.clusterings[[id]][cell.ids%in%names(clusters)]<-clusters
+        update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
+      } else {
+        sub.clustering<-data.frame(x = rep(-1, nrow(ca.clusterings)))
+        sub.clustering['x'][cell.ids%in%names(clusters)]<-clusters
+        append_clustering_update_ca(loom = loom, clustering.id = id, clustering = sub.clustering)
+      }
+    } else {
+      clustering<-data.frame(x = clusters)
+      append_clustering_update_ca(loom = loom, clustering.id = id, clustering = clustering)
+    }
   } else {
     print("Clusterings created...")
     clustering<-data.frame("0" = clusters)
@@ -332,33 +516,18 @@ add_clustering<-function(loom
   loom$flush()
   # Adding the clustering meta data
   add_global_md_clustering(loom = loom
+                           , id = id
+                           , level = level
                            , group = group
                            , name = name
+                           , params = params
+                           , clusters = clusters
+                           , parent.clustering.id = parent.clustering.id
                            , annotation = annotation
                            , annotation.cluster.id.cl = annotation.cluster.id.cl
                            , annotation.cluster.description.cl = annotation.cluster.description.cl)
   loom$flush()
-}
-
-#'@export
-add_cluster_markers<-function(loom
-                              , clustering.id
-                              , cluster.id
-                              , markers) {
-  genes<-get_genes(loom = loom, is.flybase.gn = F)
-  # Adding the cluster markers data
-  k<-paste0("ClusteringMarkers","_",clustering.id)
-  if(col_attrs_exists_by_key(loom = loom, key = k)) {
-    ca.clustering.markers.df<-get_col_attr_by_key(loom = loom, key = k)
-    cluster.markers.df<-data.frame(x = genes %in% markers)
-    colnames(clusters.df)<-as.character(ncol(ca.clustering.markers.df)+1)
-    ca.clustering.markers.df<-cbind(ca.clustering.markers.df, cluster.markers.df)
-    add_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clustering.markers.df))
-  } else {
-    clustering<-data.frame("0" = genes %in% markers)
-    add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
-  }
-  loom$flush()
+  return (id)
 }
 
 ####################
@@ -396,6 +565,20 @@ add_scenic_regulons_auc_matrix<-function(loom
                                          , regulons.AUC) {
   add_col_attr(loom = loom, key = "RegulonsAUC", value = as.data.frame(x = t(regulons.AUC)))
   loom$flush()
+}
+
+###########################
+# Col Meta data functions #
+###########################
+
+#'@title get_cells
+#'@description Get the cell names
+#'@param loom           The loom file handler.
+#'@export
+get_cells<-function(loom
+                    , is.flybase.gn = F) {
+  ra<-loom[["col_attrs"]]
+  return (ra[["CellID"]][])
 }
 
 ###########################
