@@ -88,8 +88,8 @@ add_global_md_embedding<-function(loom
 sub_clustering_exists<-function(parent.clustering.id) {
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[["clusterings"]]
-  x<-sapply(c, function(x) { x['parentClusteringId'] == parent.clustering.id })
-  return (is.na(match(TRUE,x)))
+  x<-sapply(c, function(x) { x[["parentClusteringId"]] == parent.clustering.id })
+  return (!is.na(match(TRUE,x)))
 }
 
 #'@title add_global_md_clustering
@@ -144,7 +144,7 @@ add_global_md_clustering<-function(loom
   gmd[["clusterings"]]<-NULL
   gmd[["clusterings"]]<-c
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
-  loom$flush
+  loom$flush()
 }
 
 #'@title add_global_md_regulon_thresholds
@@ -155,11 +155,11 @@ add_global_md_clustering<-function(loom
 #'@export
 add_global_md_regulon_thresholds<-function(loom
                                          , regulon.threshold.assignments
-                                         , regulon.enrichment.table) {
+                                         , regulon.enrichment.table = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   rT<-gmd[["regulonThresholds"]]
   for(regulon in names(regulon.threshold.assignments)) {
-    regulon.name<-strsplit(regulon, "_")[[1]][1]
+    regulon.name<-strsplit(regulon, " ")[[1]][1]
     # Store the threshold assignments
     rta<-regulon.threshold.assignments[[regulon]]
     AUC.thresholds<-rta$aucThr$thresholds
@@ -169,27 +169,33 @@ add_global_md_regulon_thresholds<-function(loom
       return (l)
     }))
     AUC.selected.threshold<-rta$aucThr$selected
-    # Store the motif name
-    if(!("NES"%in%colnames(regulon.enrichment.table))) {
-      stop("Error: NES column is not provided in the regulon enrichment table!")
-    }
-    if(!("motif"%in%colnames(regulon.enrichment.table))) {
-      stop("Error: motif column is not provided in the regulon enrichment table!")
-    }
-    regulon.enrichment.table<-regulon.enrichment.table[with(regulon.enrichment.table, order(NES, decreasing = T)), ]
-    motif.name = regulon.enrichment.table$motif[regulon.enrichment.table$highlightedTFs == regulon.name][1]
+    # Add regulon thresholds
     regulon.tresholds<-list(regulon = gsub(pattern = " ", replacement = "_", x = regulon)
                             , defaultThresholdValue = as.numeric(AUC.selected.threshold)
                             , defaultThresholdName = names(AUC.selected.threshold)
-                            , allThresholds = allThresholds
-                            , motifData = paste0(motif.name,".png"))
+                            , allThresholds = allThresholds)
+    # Add the motif data
+    if(!is.null(regulon.enrichment.table)) {
+      # Store the motif name
+      if(!("NES"%in%colnames(regulon.enrichment.table))) {
+        stop("Error: NES column is not provided in the regulon enrichment table!")
+      }
+      if(!("motif"%in%colnames(regulon.enrichment.table))) {
+        stop("Error: motif column is not provided in the regulon enrichment table!")
+      }
+      regulon.enrichment.table<-regulon.enrichment.table[with(regulon.enrichment.table, order(NES, decreasing = T)), ]
+      motif.name = regulon.enrichment.table$motif[regulon.enrichment.table$highlightedTFs == regulon.name][1]
+      motifData<-paste0(motif.name,".png")
+      regulon.tresholds<-append(regulon.tresholds, list("motifData"=motifData))
+    } else {
+      warning("Argument 'regulon.enrichment.table' is not provided. Motif data will therefore not be stored in the given .loom.")
+    }
     rT[[length(rT)+1]]<-regulon.tresholds
   }
   gmd[["regulonThresholds"]]<-NULL
   gmd[["regulonThresholds"]]<-rT
-  loom$flush
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
-  loom$flush
+  loom$flush()
 }
 
 #'@title get_global_meta_data
@@ -204,7 +210,8 @@ get_global_meta_data<-function(loom) {
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
   compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-  h5attr(x = loom, which = "MetaData")<-compressed.meta.data
+  loom$attr_delete(attr_name = "MetaData")
+  add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
 }
 
 #'@export
@@ -216,7 +223,7 @@ init_global_meta_data<-function(loom) {
   meta.data.json<-rjson::toJSON(meta.data)
   if(!("MetaData"%in%list.attributes(object = loom))) {
     compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-    loom$create_attr(attr_name = "MetaData", robj = as.character(compressed.meta.data), dtype = H5T_STRING$new(size=Inf))
+    add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
   } else {
     update_global_meta_data(loom = loom, meta.data.json = as.character(meta.data.json))
   }
@@ -287,7 +294,6 @@ add_embedding<-function(loom
   if(is.default & is.null(parent.clustering.id) & is.null(cluster.id)) {
     add_default_embedding(loom = loom, embedding = embedding)
   }
-  
   ca<-loom[["col_attrs"]]
   
   if(!is.null(parent.clustering.id)) {
@@ -347,54 +353,86 @@ add_embedding<-function(loom
 # Clusterings functions #
 #########################
 
+get_list_clustering_resolutions<-function(seurat) {
+  return(as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2]))
+}
+
 get_clid_by_clustering_param<-function(loom
-                                         , clustering.level
-                                         , clustering.group
-                                         , clustering.param.name
-                                         , clustering.param.value) {
+                                     , clustering.level
+                                     , clustering.group
+                                     , clustering.param.name
+                                     , clustering.param.value) {
   ca<-loom[["col_attrs"]]
+  if(!("Clusterings" %in% names(ca))) {
+    stop("Clusterings does not exist in the columns attributes of the given .loom file.")
+  }
   ca.clusterings<-ca[['Clusterings']][]
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[["clusterings"]]
   x<-sapply(c, function(x) { 
-    x['params'][[clustering.param.name]] == clustering.param.value &
-      x['level'] == clustering.level &
-      x['group'] == clustering.group
+    x[["params"]][[clustering.param.name]] == clustering.param.value &
+      x[["level"]] == clustering.level &
+      x[["group"]] == clustering.group
   })
   clid<-colnames(ca.clusterings)[x]
   if(length(clid) != 1) {
     stop(paste0("The clustering with param '", paste(clustering.param.name, clustering.param.value),"' do not exist."))
   }
+  return(clid)
 }
 
 #'@title add_seurat_clustering
 #'@description Add all the Seurat clusterings in the given seurat object to the given .loom file handler.
-#'@param loom                               The loom file handler.
-#'@param seurat                             The Seurat object
-#'@param default.clustering.resolution      The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default.
-#'@param seurat.markers.file.path.list      The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res2.0).
-#'@param annotation                         A data.frame with annotation for the clusters
-#'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
-#'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
+#'@param loom                                 The loom file handler.
+#'@param seurat                               The Seurat object
+#'@param default.clustering.resolution        The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default.
+#'@param seurat.clustering.level              The clustering level of the given Seurat analysis. Default is 0.
+#'@param parent.seurat.clustering.resolution  The clustering resolution of the parent clustering in case the given Seurat analysis is a sub-clustering. Default is NULL.
+#'@param seurat.markers.file.path.list        The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL. 
+#'@param annotation                           A data.frame with annotation for the clusters. Default is NULL.
+#'@param annotation.cluster.id.cl             The column name to use for the IDs of the clusters found by the given clustering group. Default is NULL.
+#'@param annotation.cluster.description.cl    The column name to use for the description of the clusters found by the given clustering group. Default is NULL.
 #'@export
 add_seurat_clustering<-function(loom
                                 , seurat
-                                , default.clustering.resolution
-                                , seurat.markers.file.path.list
-                                , seurat.clustering.level
-                                , parent.seurat.clustering.resolution
-                                , annotation
-                                , annotation.cluster.id.cl
-                                , annotation.cluster.description.cl) {
-  # Get parent clustering id based on parent Seurat clustering resolution
-  parent.seurat.clustering.id<-get_clid_by_clustering_param(loom = loom
-                                                          , clustering.level = seurat.clustering.level
-                                                          , clustering.group = "Seurat"
-                                                          , clustering.param.name = "resolution"
-                                                          , clustering.param.value = parent.seurat.clustering.resolution)
-  clustering.resolutions<-as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2])
+                                , default.clustering.resolution = NULL
+                                , seurat.clustering.level = 0
+                                , parent.seurat.clustering.resolution = NULL
+                                , parent.seurat.cluster.id = NULL
+                                , seurat.markers.file.path.list = NULL
+                                , annotation = NULL
+                                , annotation.cluster.id.cl = NULL
+                                , annotation.cluster.description.cl = NULL) {
+  if(is.null(names(seurat.markers.file.path.list))) {
+    stop("Argument 'seurat.markers.file.path.list' is not a named list. The names should correspond to the clustering ID in Seurat object (e.g.: res.2).")
+  }
+  if(!is.null(default.clustering.resolution)) {
+    if(!is.null(parent.seurat.clustering.resolution) | seurat.clustering.level > 0) {
+      stop("Cannot set a default clustering for sub-clusterings. Please set `default.clustering.resolution` to NULL.")
+    }
+  }
+  # Get only parent clustering id if 
+  # - Clusterings col attribute already exists
+  # - Given clustering level is not the main clustering (> 0)
+  # - Given parent seurat clustering resolution is not NULL
+  if(col_attrs_exists_by_key(loom = loom, key = "Clusterings") &
+     seurat.clustering.level > 0 &
+     !is.null(parent.seurat.clustering.resolution)) {
+    # Get parent clustering id based on parent Seurat clustering resolution
+    parent.seurat.clustering.id<-get_clid_by_clustering_param(loom = loom
+                                                            , clustering.level = (seurat.clustering.level-1)
+                                                            , clustering.group = "Seurat"
+                                                            , clustering.param.name = "resolution"
+                                                            , clustering.param.value = parent.seurat.clustering.resolution)
+    print(paste0("Parent clustering ID: ", parent.seurat.clustering.id))
+  } else {
+    parent.seurat.clustering.id<-NULL
+  }
+  clustering.resolutions<-get_list_clustering_resolutions(seurat)
   for(res in clustering.resolutions) {
-    seurat<-seurat::SetAllIdent(object=seurat, id=paste0("res.",res))
+    resolution.id<-paste0("res.",res)
+    print(paste0("Seurat resolution ", res))
+    seurat<-Seurat::SetAllIdent(object=seurat, id=resolution.id)
     cluster.ids<-seurat@ident
     is.default.clustering<-F
     # Add the Seurat clusters
@@ -402,12 +440,16 @@ add_seurat_clustering<-function(loom
     a<-NULL
     ac.id.cl<-NULL
     ac.description.cl<-NULL
-    if(res == default.clustering.resolution) {
-      print("Adding default Seurat clusters...")
-      a<-annotation
-      ac.id.cl<-annotation.cluster.id.cl
-      ac.description.cl<-annotation.cluster.description.cl
-      is.default.clustering<-T
+    if(!is.null(default.clustering.resolution)) {
+      if(res == default.clustering.resolution) {
+        print("Adding default Seurat clusters...")
+        if(!is.null(annotation) & !is.null(annotation.cluster.id.cl) & !is.null(annotation.cluster.description.cl)) {
+          a<-annotation
+          ac.id.cl<-annotation.cluster.id.cl
+          ac.description.cl<-annotation.cluster.description.cl
+        }
+        is.default.clustering<-T
+      }
     }
     loom$flush()
     clid<-add_clustering(loom = loom
@@ -415,22 +457,31 @@ add_seurat_clustering<-function(loom
                        , name = paste("Seurat, resolution",res)
                        , params = list("resolution"=res)
                        , clusters = cluster.ids
-                       , clustering.level = seurat.clustering.level
+                       , level = seurat.clustering.level
                        , parent.clustering.id = parent.seurat.clustering.id
                        , is.default = is.default.clustering
                        , annotation = a
                        , annotation.cluster.id.cl = ac.id.cl
                        , annotation.cluster.description.cl = ac.description.cl)
+    print(paste0("Clustering ID: ", clid))
     loom$flush()
-    # Add the Seurat markers
-    print("Adding Seurat markers...")
-    seurat.markers<-readRDS(file = seurat.markers.file.path.list[[paste0("res.", res)]])
-    seurat.m.list<-split(x = seurat.markers, f = seurat.markers$cluster)
-    seurat.m.list<-lapply(X = seurat.m.list, function(cluster) {
-      return (cluster$gene)
-    })
-    add_clustering_markers(loom = loom, clustering.id = clid, clustering.markers = seurat.m.list)
-    loom$flush()
+    # Add the Seurat markers if not empty
+    if(!is.null(seurat.markers.file.path.list)) {
+      print("Adding Seurat markers...")
+      if(resolution.id %in% names(seurat.markers.file.path.list)) {
+        seurat.markers<-readRDS(file = seurat.markers.file.path.list[[resolution.id]])
+        seurat.m.list<-split(x = seurat.markers, f = seurat.markers$cluster)
+        seurat.m.list<-lapply(X = seurat.m.list, function(cluster) {
+          return (cluster$gene)
+        })
+        add_clustering_markers(loom = loom, clustering.id = clid, cluster.id = parent.seurat.cluster.id, clustering.markers = seurat.m.list)
+        loom$flush()
+      } else {
+        warning(paste0("Seurat markers for clustering resolution ", res, " have not been computed."))
+      }
+    } else {
+      print("No Seurat markers added.")
+    }
   }
 }
 
@@ -458,16 +509,16 @@ append_clustering_update_ca<-function(loom
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
 #'@export
 add_clustering<-function(loom
-                         , group
-                         , name
-                         , params
-                         , clusters
-                         , level = 0
-                         , parent.clustering.id = NULL
-                         , is.default = F
-                         , annotation = NULL
-                         , annotation.cluster.id.cl =  NULL
-                         , annotation.cluster.description.cl = NULL) {
+                       , group
+                       , name
+                       , params
+                       , clusters
+                       , level = 0
+                       , parent.clustering.id = NULL
+                       , is.default = F
+                       , annotation = NULL
+                       , annotation.cluster.id.cl =  NULL
+                       , annotation.cluster.description.cl = NULL) {
   id<-0
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
@@ -482,7 +533,7 @@ add_clustering<-function(loom
       }
       names(clusters)[clusters == cluster]<-description
     }
-    add_col_attr(loom = loom, key = "ClusterName", value = names(clusters))
+    add_col_attr(loom = loom, key = "ClusterName", value = names(clusters), dtype = "character")
   }
   # Adding the clustering data
   k<-"Clusterings"
@@ -490,7 +541,7 @@ add_clustering<-function(loom
     print("Clusterings already exists...")
     ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
     # Set the clustering id
-    id<-ncol(ca.clusterings)+1 # n clusterings
+    id<-ncol(ca.clusterings) # n clusterings (start at 0)
     # Check if we are adding a sub clustering
     if(!is.null(parent.clustering.id)) {
       id<-paste0(parent.clustering.id,"_sub")
@@ -510,7 +561,8 @@ add_clustering<-function(loom
     }
   } else {
     print("Clusterings created...")
-    clustering<-data.frame("0" = clusters)
+    clustering<-data.frame("x" = clusters)
+    colnames(clustering)<-as.character(id)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
   loom$flush()
@@ -594,6 +646,7 @@ get_cells<-function(loom
 #'@export
 add_clustering_markers<-function(loom
                                , clustering.id
+                               , cluster.id = NULL
                                , clustering.markers) {
   genes<-get_genes(loom = loom, is.flybase.gn = F)
   clustering.markers.mask<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
@@ -604,9 +657,22 @@ add_clustering_markers<-function(loom
     return (cm.mask)
   }))
   row.names(clustering.markers.mask)<-genes
-  clustering.id<-ncol(loom[["col_attrs"]][["Clusterings"]][])-1
-  print(paste0("Adding markers for clustering ID ", clustering.id))
-  add_row_attr(loom = loom, key = paste0("ClusteringMarkers_",clustering.id), value = as.data.frame(x = clustering.markers.mask))
+  print(paste0("Adding markers for clustering ", clustering.id, "..."))
+  ra<-loom[["row_attrs"]]
+  # Check if we add markers for a sub-clustering
+  if(grepl("sub", clustering.id)) {
+    ra.cm.names.mask<-grepl(pattern = paste0("^ClusteringMarkers_",clustering.id,"_",cluster.id,"_[0-9]+$"), x = names(ra))
+    # Check if markers have already been saved for the clustering group
+    if(sum(ra.cm.names.mask) == 0) {
+      clustering.markers.id<-paste0(clustering.id,"_",cluster.id,"_0")
+    } else {
+      clustering.markers.id<-paste0(clustering.id,"_",cluster.id,"_",sum(ra.cm.names.mask))
+    }
+  } else {
+    ca.clusterings<-get_col_attr_by_key(loom = loom, key = "Clusterings")
+    clustering.markers.id<-ncol(ca.clusterings)
+  }
+  add_row_attr(loom = loom, key = paste0("ClusteringMarkers_",clustering.markers.id), value = as.data.frame(x = clustering.markers.mask))
   loom$flush()
 }
 
@@ -670,8 +736,15 @@ get_global_attr<-function(loom
 #'@export
 add_global_attr<-function(loom
                           , key
-                          , value) {
-  loom$create_attr(attr_name = key, robj = value, dtype = getDtype(x = value))
+                          , value
+                          , dtype = NULL) {
+  if(is.null(dtype)) {
+    dtype<-guess_dtype(x = value)
+  }
+  if(class(dtype)[1] == "H5T_STRING") {
+    dtype<-dtype$set_cset('UTF-8')
+  }
+  loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar"))
   loom$flush()
 }
 
@@ -698,9 +771,15 @@ update_row_attr<-function(loom
 #'@export
 add_row_attr<-function(loom
                        , key
-                       , value) {
-  ra<-loom[["row_attrs"]]
-  ra[[key]]<-value
+                       , value
+                       , dtype = NULL) {
+  if(is.null(dtype)) {
+    dtype<-guess_dtype(x = value)
+  }
+  if(class(dtype)[1] == "H5T_STRING") {
+    dtype<-dtype$set_cset('UTF-8')
+  }
+  loom$create_dataset(name = paste0("row_attrs/",key), robj = value, dtype = dtype)
   loom$flush()
 }
 
@@ -743,9 +822,15 @@ update_col_attr<-function(loom
 add_col_attr<-function(loom
                        , key
                        , value
+                       , dtype = NULL
                        , as.md.annotation = F) {
-  ca<-loom[["col_attrs"]]
-  ca[[key]]<-value
+  if(is.null(dtype)) {
+    dtype<-guess_dtype(x = value)
+  }
+  if(class(dtype)[1] == "H5T_STRING") {
+    dtype<-dtype$set_cset('UTF-8')
+  }
+  loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
   loom$flush()
   if(as.md.annotation) {
     add_global_md_annotation(loom = loom, name = key, values = value)
@@ -764,13 +849,13 @@ add_matrix<-function(loom
                      , display.progress) {
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
-  dtype<-getDtype(x = dgem[1, 1])
+  dtype<-get_dtype(x = dgem[1, 1])
   loom$create_dataset(
     name = 'matrix',
     dtype = dtype,
     dims = rev(x = dim(x = dgem))
   )
-  chunk.points<-chunkPoints(
+  chunk.points<-chunk_points(
     data.size = dim(x = dgem)[2],
     chunk.size = chunk.size
   )
@@ -791,7 +876,7 @@ add_matrix<-function(loom
 
 #'@title finalize
 #'@description finalize
-#'@loom The loom file handler.
+#'@param loom The loom file handler.
 #'@export
 finalize<-function(loom) {
   loom$flush()
@@ -899,13 +984,13 @@ decompress_gzb64<-function(gzb64c) {
 # Utils (loomR)
 ###########################
 
-#' @title chunkPoints
+#' @title chunk_points
 #' @description  Generate chunk points
 #' @param data.size How big is the data being chunked
 #' @param chunk.size How big should each chunk be
 #' @return A matrix where each column is a chunk, row 1 is start points, row 2 is end points
 #' @export
-chunkPoints<-function(data.size, chunk.size) {
+chunk_points<-function(data.size, chunk.size) {
   return(vapply(
     X = 1L:ceiling(data.size / chunk.size),
     FUN = function(i) {
@@ -919,15 +1004,14 @@ chunkPoints<-function(data.size, chunk.size) {
 }
 
 
-#'@title getDtype
+#'@title get_dtype
 #'@description Get HDF5 data types
 #'@param x An R object or string describing HDF5 datatype
 #'@return The corresponding HDF5 data type
-#'@ rdname getDtype
 #'@import hdf5r
 #'@seealso \link{hdf5r::h5types}
 #'@export
-getDtype<-function(x) {
+get_dtype<-function(x) {
   return(switch(
     EXPR = class(x = x),
     'numeric' = h5types$double,
@@ -936,4 +1020,8 @@ getDtype<-function(x) {
     'logical' = H5T_LOGICAL$new(),
     stop(paste("Unknown data type:", class(x = x)))
   ))
+}
+
+get_dspace<-function(x) {
+  return (H5S$new(type = x, dims = NULL, maxdims = NULL))
 }
