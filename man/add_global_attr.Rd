@@ -4,7 +4,7 @@
 \alias{add_global_attr}
 \title{add_global_attr}
 \usage{
-add_global_attr(loom, key, value)
+add_global_attr(loom, key, value, dtype = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}

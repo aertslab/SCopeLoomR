@@ -6,6 +6,9 @@
 \usage{
 finalize(loom)
 }
+\arguments{
+\item{loom}{The loom file handler.}
+}
 \description{
 finalize
 }

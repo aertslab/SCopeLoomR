@@ -4,7 +4,7 @@
 \alias{add_row_attr}
 \title{add_row_attr}
 \usage{
-add_row_attr(loom, key, value)
+add_row_attr(loom, key, value, dtype = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}

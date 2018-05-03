@@ -233,6 +233,7 @@ init_global_meta_data<-function(loom) {
 # Embedding functions #
 #######################
 
+#'@export
 sub_embedding_exists<-function(loom, id, embedding) {
   # Only test on X (it should be true for Y)
   ca.embeddings.x<-get_col_attr_by_key(loom = loom, key = "Embeddings_X")
@@ -251,12 +252,14 @@ sub_embedding_exists<-function(loom, id, embedding) {
   return (se.group.id)
 }
 
+#'@export
 add_default_embedding<-function(loom, embedding) {
   embedding<-as.data.frame(embedding)
   colnames(embedding)<-c("_X","_Y")
   add_col_attr(loom = loom, key = "Embedding", value = embedding)
 }
 
+#'@export
 append_embedding_group_update_ca<-function(loom
                                       , embedding
                                       , embedding.group.id
@@ -353,10 +356,12 @@ add_embedding<-function(loom
 # Clusterings functions #
 #########################
 
+#'@export
 get_list_clustering_resolutions<-function(seurat) {
   return(as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2]))
 }
 
+#'@export
 get_clid_by_clustering_param<-function(loom
                                      , clustering.level
                                      , clustering.group
@@ -485,6 +490,7 @@ add_seurat_clustering<-function(loom
   }
 }
 
+#'@export
 append_clustering_update_ca<-function(loom
                                       , clustering.id
                                       , clustering) {
@@ -527,13 +533,13 @@ add_clustering<-function(loom
     unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
     for(cluster in unique.clusters) {
       description<-paste0("NDA - Cluster ", cluster)
-      names(clusters)<-description
+      names(clusters)[clusters == cluster]<-description
       if(!is.null(annotation)) {
         description<-annotation[annotation[[annotation.cluster.id.cl]] == cluster, annotation.cluster.description.cl]
       }
       names(clusters)[clusters == cluster]<-description
     }
-    add_col_attr(loom = loom, key = "ClusterName", value = names(clusters), dtype = "character")
+    add_col_attr(loom = loom, key = "ClusterName", value = names(clusters))
   }
   # Adding the clustering data
   k<-"Clusterings"

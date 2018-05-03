@@ -4,7 +4,7 @@
 \alias{add_col_attr}
 \title{add_col_attr}
 \usage{
-add_col_attr(loom, key, value, as.md.annotation = F)
+add_col_attr(loom, key, value, dtype = NULL, as.md.annotation = F)
 }
 \arguments{
 \item{loom}{The loom file handler.}
