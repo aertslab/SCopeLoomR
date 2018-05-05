@@ -227,7 +227,8 @@ update_global_meta_data<-function(loom
   compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
   # loom$attr_delete(attr_name = "MetaData")
   # add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
-  h5attr(x = loom, which = "MetaData")<-as.character(compressed.meta.data)
+  # h5attr(x = loom, which = "MetaData")<-as.character(compressed.meta.data)
+  update_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
 }
 
 #'@export
@@ -772,6 +773,13 @@ lookup_all_global_attr<-function(loom) {
   list.attributes(object = loom)
 }
 
+update_global_attr<-function(loom
+                             , key
+                             , value) {
+  remove_global_attr(loom = loom, key = key)
+  add_global_attr(loom = loom, key = key, value = value)
+}
+
 
 #'@export
 remove_global_attr<-function(loom
@@ -800,9 +808,8 @@ add_global_attr<-function(loom
   if(is.null(dtype)) {
     dtype<-guess_dtype(x = value)
   }
-  if(class(dtype)[1] == "H5T_STRING") {
-    dtype<-dtype$set_cset('UTF-8')
-  }
+  # Encode character vector to UTF-8
+  dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
   loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar"))
   loom$flush()
 }
@@ -835,9 +842,8 @@ add_row_attr<-function(loom
   if(is.null(dtype)) {
     dtype<-guess_dtype(x = value)
   }
-  if(class(dtype)[1] == "H5T_STRING") {
-    dtype<-dtype$set_cset('UTF-8')
-  }
+  # Encode character vector to UTF-8
+  dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
   loom$create_dataset(name = paste0("row_attrs/",key), robj = value, dtype = dtype)
   loom$flush()
 }
@@ -886,20 +892,8 @@ add_col_attr<-function(loom
   if(is.null(dtype)) {
     dtype<-guess_dtype(x = value)
   }
-  if(class(dtype)[1] == "H5T_STRING") {
-    # Set to UTF-8 encoding otherwise read as byte array
-    dtype<-dtype$set_cset('UTF-8')
-  } else if(class(dtype)[1] == "H5T_COMPOUND") {
-    dtypes<-unique(sapply(value, class))
-    if(length(dtypes) > 1) {
-      stop("Adding a data.frame as column requires the values to be the same type.")
-    }
-    if(dtypes == "character") {
-      # Set all the columns to UTF-8 encoding otherwise read as byte array
-      dtype<-H5T_COMPOUND$new(labels = colnames(value), dtypes = lapply(X = seq_along(colnames(value)), FUN = function(x) { return (H5T_STRING$new(size = Inf)$set_cset(cset = "UTF-8")) }))
-    }
-  }
-  
+  # Encode character vector to UTF-8
+  dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
   loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
   loom$flush()
   if(as.md.annotation) {
@@ -1048,6 +1042,23 @@ compress_gzb64<-function(c) {
 
 decompress_gzb64<-function(gzb64c) {
   return (rawToChar(memDecompress(from = base64enc::base64decode(what = gzb64c), type = "gzip", asChar = F), multiple = F))
+}
+
+hdf5_utf8_encode<-function(value, dtype) {
+  if(class(dtype)[1] == "H5T_STRING") {
+    # Set to UTF-8 encoding otherwise read as byte array
+    dtype<-dtype$set_cset('UTF-8')
+  } else if(class(dtype)[1] == "H5T_COMPOUND") {
+    dtypes<-unique(sapply(value, class))
+    if(length(dtypes) > 1) {
+      stop("Adding a data.frame as column requires the values to be the same type.")
+    }
+    if(dtypes == "character") {
+      # Set all the columns to UTF-8 encoding otherwise read as byte array
+      dtype<-H5T_COMPOUND$new(labels = colnames(value), dtypes = lapply(X = seq_along(colnames(value)), FUN = function(x) { return (H5T_STRING$new(size = Inf)$set_cset(cset = "UTF-8")) }))
+    }
+  }
+  return (dtype)
 }
 
 ###########################
