@@ -18,7 +18,7 @@ add_global_md_annotation<-function(loom
                                  , values) {
   gmd<-get_global_meta_data(loom = loom)
   a<-gmd[["annotations"]]
-  a[[length(a)+1]]<-list(name = name, values = as.character(unique(values)))
+  a[[length(a)+1]]<-list(name = name, values = unique(values))
   gmd[["annotations"]]<-NULL
   gmd[["annotations"]]<-a
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
@@ -74,7 +74,12 @@ add_global_md_embedding<-function(loom
     cluster.id<-(-1) # By default set to all cells
   }
   
-  e[[length(e)+1]]<-list(id = id, name = name, parentClusteringId = parent.clustering.id, clusterId = cluster.id, default = default)
+  e[[length(e)+1]]<-list(id = length(e)
+                         , name = name
+                         # , parentClusteringId = parent.clustering.id
+                         # , clusterId = cluster.id
+                         # , default = default)
+  )
   gmd[["embeddings"]]<-NULL
   gmd[["embeddings"]]<-e
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
@@ -107,19 +112,26 @@ add_global_md_clustering<-function(loom
                                  , group
                                  , name
                                  , params
-                                 , parent.clustering.id = NULL
                                  , clusters
                                  , annotation = NULL
-                                 , annotation.cluster.id.cl = NULL
-                                 , annotation.cluster.description.cl = NULL) {
+                                 , parent.clustering.id = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[["clusterings"]]
   unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
+  print(unique.clusters)
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     description<-paste("NDA - Cluster", cluster.id)
     if(!is.null(annotation)) {
+      # Force to have the same order
+      annotation<-annotation[names(clusters)]
       # If annotation for the current cluster not empty then add
-      d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
+      # d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
+      # Convert from factor to character vector to be used with nchar
+      d<-as.character(unique(annotation[clusters == cluster.id])) 
+      print(d)
+      if(length(d) > 1) {
+        stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
+      }
       if(nchar(d)>0) {
         description<-paste0(d, " (",cluster.id,")")
       }
@@ -133,12 +145,15 @@ add_global_md_clustering<-function(loom
   if(is.null(parent.clustering.id)) {
     parent.clustering.id<-(-1)
   }
-  clustering<-list(id = id
-                 , level = level
-                 , parentClusteringId = parent.clustering.id
+  if(is.null(params)) {
+    params<-"Not Defined."
+  }
+  clustering<-list(id = length(c)
+                 # , level = level
+                 # , parentClusteringId = parent.clustering.id
                  , group = group
                  , name = name
-                 , params = params
+                 # , params = params
                  , clusters = clusters)
   c[[length(c)+1]]<-clustering
   gmd[["clusterings"]]<-NULL
@@ -210,8 +225,9 @@ get_global_meta_data<-function(loom) {
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
   compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-  loom$attr_delete(attr_name = "MetaData")
-  add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
+  # loom$attr_delete(attr_name = "MetaData")
+  # add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
+  h5attr(x = loom, which = "MetaData")<-as.character(compressed.meta.data)
 }
 
 #'@export
@@ -457,11 +473,12 @@ add_seurat_clustering<-function(loom
       }
     }
     loom$flush()
-    clid<-add_clustering(loom = loom
+    loom
+    clid<-add_clustering2(loom = loom
                        , group = "Seurat"
                        , name = paste("Seurat, resolution",res)
-                       , params = list("resolution"=res)
                        , clusters = cluster.ids
+                       , params = list("resolution"=res)
                        , level = seurat.clustering.level
                        , parent.clustering.id = parent.seurat.clustering.id
                        , is.default = is.default.clustering
@@ -502,7 +519,7 @@ append_clustering_update_ca<-function(loom
   update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
 }
 
-#'@title add_clustering
+#'@title add_clustering2
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
 #'@param loom                               The loom file handler.
 #'@param group                              The for the given clustering group to which the given clusters have to be added
@@ -514,32 +531,69 @@ append_clustering_update_ca<-function(loom
 #'@param annotation.cluster.id.cl           The column name to use for the IDs of the clusters found by the given clustering group.
 #'@param annotation.cluster.description.cl  The column name to use for the description of the clusters found by the given clustering group.
 #'@export
+add_clustering2<-function(loom
+                          , group
+                          , name
+                          , clusters
+                          , level = 0
+                          , params = NULL
+                          , parent.clustering.id = NULL
+                          , annotation.df = NULL
+                          , annotation.df.cluster.id.cl =  NULL
+                          , annotation.df.cluster.description.cl = NULL) {
+  unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
+  annotation<-setNames(object = rep(NA, length(clusters)), nm = names(clusters))
+  for(cluster in unique.clusters) {
+    print(cluster)
+    description<-paste0("NDA - Cluster ", cluster)
+    if(!is.null(annotation.df)) {
+      description<-annotation.df[annotation.df[["id"]] == cluster, "description"]
+    }
+    annotation[clusters == cluster]<-description
+  }
+  annotation<-factor(x = annotation)
+  names(x = annotation)<-names(clusters)
+  add_clustering(loom = loom, group = group, name = name, params = params, clusters = clusters, level = level, parent.clustering.id = parent.clustering.id, is.default = T, annotation = annotation)
+}
+
+#'@title add_clustering
+#'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
+#'@param loom                 The loom file handler.
+#'@param group                The for the given clustering group to which the given clusters have to be added
+#'@param name                 The name given to this clustering
+#'@param parent.clustering.id Clustering ID of the parent in case it's a subclustering.
+#'@param clusters             A named list of the cell id and assigned the cluster id.
+#'@param is.default           Set this clustering be set as default one.
+#'@param annotation           A named list of the cell id and the corresponding annotation.
+#'@export
 add_clustering<-function(loom
                        , group
                        , name
-                       , params
                        , clusters
+                       , annotation
+                       , params = NULL
                        , level = 0
                        , parent.clustering.id = NULL
-                       , is.default = F
-                       , annotation = NULL
-                       , annotation.cluster.id.cl =  NULL
-                       , annotation.cluster.description.cl = NULL) {
+                       , is.default = F) {
   id<-0
+  if(length(unique(clusters)) == length(unique(annotation))) {
+    # Make sure the order are the same
+    annotation<-annotation[names(clusters)]
+    print("Same length")
+  } else {
+    # Does not seem that cluster IDs and cluster annotation correspond
+    # Remap to have the same number of unique IDs as the number of unique annotation
+    library(plyr)
+    clusters<-factor(x = as.integer(mapvalues(annotation, from = unique(x = annotation), to = seq_along(along.with = unique(x = annotation))-1)))
+    names(clusters)<-names(annotation)
+  }
+  # Order the clusters in the order defined CellID column attribute
+  clusters<-clusters[loom[["col_attrs"]][["CellID"]][]]
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
-    add_col_attr(loom = loom, key = "ClusterID", value = clusters)
-    unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
-    for(cluster in unique.clusters) {
-      description<-paste0("NDA - Cluster ", cluster)
-      names(clusters)[clusters == cluster]<-description
-      if(!is.null(annotation)) {
-        description<-annotation[annotation[[annotation.cluster.id.cl]] == cluster, annotation.cluster.description.cl]
-      }
-      names(clusters)[clusters == cluster]<-description
-    }
-    add_col_attr(loom = loom, key = "ClusterName", value = names(clusters))
+    add_col_attr(loom = loom, key = "ClusterID", value = as.integer(as.character(x = clusters)))
+    add_col_attr(loom = loom, key = "ClusterName", value = as.character(x = annotation))
   }
   # Adding the clustering data
   k<-"Clusterings"
@@ -554,24 +608,25 @@ add_clustering<-function(loom
       cell.ids<-get_cells(loom = loom)
       # Check if the sub clustering already exists given the parent.clustering.id
       if(sub_clustering_exists(parent.clustering.id)) {
-        ca.clusterings[[id]][cell.ids%in%names(clusters)]<-clusters
+        ca.clusterings[[id]][cell.ids%in%names(clusters)]<-as.integer(as.character(x = clusters))
         update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
       } else {
-        sub.clustering<-data.frame(x = rep(-1, nrow(ca.clusterings)))
-        sub.clustering['x'][cell.ids%in%names(clusters)]<-clusters
+        sub.clustering<-data.frame(x = rep(-1, nrow(ca.clusterings)), stringsAsFactors = F)
+        sub.clustering['x'][cell.ids%in%names(clusters)]<-as.integer(as.character(x = clusters))
         append_clustering_update_ca(loom = loom, clustering.id = id, clustering = sub.clustering)
       }
     } else {
-      clustering<-data.frame(x = clusters)
+      clustering<-data.frame("x" = as.integer(as.character(x = clusters)))
       append_clustering_update_ca(loom = loom, clustering.id = id, clustering = clustering)
     }
   } else {
     print("Clusterings created...")
-    clustering<-data.frame("x" = clusters)
+    clustering<-data.frame("x" = as.integer(as.character(x = clusters)), stringsAsFactors = F)
     colnames(clustering)<-as.character(id)
     add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
   }
   loom$flush()
+  
   # Adding the clustering meta data
   add_global_md_clustering(loom = loom
                            , id = id
@@ -580,10 +635,8 @@ add_clustering<-function(loom
                            , name = name
                            , params = params
                            , clusters = clusters
-                           , parent.clustering.id = parent.clustering.id
                            , annotation = annotation
-                           , annotation.cluster.id.cl = annotation.cluster.id.cl
-                           , annotation.cluster.description.cl = annotation.cluster.description.cl)
+                           , parent.clustering.id = parent.clustering.id)
   loom$flush()
   return (id)
 }
@@ -834,8 +887,19 @@ add_col_attr<-function(loom
     dtype<-guess_dtype(x = value)
   }
   if(class(dtype)[1] == "H5T_STRING") {
+    # Set to UTF-8 encoding otherwise read as byte array
     dtype<-dtype$set_cset('UTF-8')
+  } else if(class(dtype)[1] == "H5T_COMPOUND") {
+    dtypes<-unique(sapply(value, class))
+    if(length(dtypes) > 1) {
+      stop("Adding a data.frame as column requires the values to be the same type.")
+    }
+    if(dtypes == "character") {
+      # Set all the columns to UTF-8 encoding otherwise read as byte array
+      dtype<-H5T_COMPOUND$new(labels = colnames(value), dtypes = lapply(X = seq_along(colnames(value)), FUN = function(x) { return (H5T_STRING$new(size = Inf)$set_cset(cset = "UTF-8")) }))
+    }
   }
+  
   loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
   loom$flush()
   if(as.md.annotation) {
