@@ -1,7 +1,7 @@
 Package: SCopeLoomR
 Type: Package
 Title: Build .loom Files for SCope
-Version: 0.0.4.0354642
+Version: 0.0.5.6558
 Author: M.D.W
 Maintainer: M.D.W <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files 
