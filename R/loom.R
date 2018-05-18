@@ -16,7 +16,7 @@ add_global_md_annotation<-function(loom
                                  , values) {
   gmd<-get_global_meta_data(loom = loom)
   a<-gmd[["annotations"]]
-  a[[length(a)+1]]<-list(name = name, values = unique(values))
+  a[[length(a)+1]]<-list(name = name, values = as.character(unique(values)))
   gmd[["annotations"]]<-NULL
   gmd[["annotations"]]<-a
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
@@ -45,7 +45,7 @@ add_global_md_embedding<-function(loom
   gmd<-get_global_meta_data(loom = loom)
   e<-gmd[["embeddings"]]
   
-  e[[length(e)+1]]<-list(id = id
+  e[[length(e)+1]]<-list(id = as.character(id)
                          , name = name
   )
   gmd[["embeddings"]]<-NULL
@@ -55,10 +55,10 @@ add_global_md_embedding<-function(loom
 
 #'@title add_global_md_clustering
 #'@description  Add the clustering annotation to the global MetaData attribute.
-#'@param loom                               The loom file handler.
-#'@param group                              The name of the group of clusterings.
-#'@param name                               The name given to the given clustering.
-#'@param clusters                           A list of the the cluster id for each cell present in the same order as in the columns of gene expression matrix.
+#'@param loom     The loom file handler.
+#'@param group    The name of the group of clusterings.
+#'@param name     The name given to the given clustering.
+#'@param clusters A list of the the cluster id for each cell present in the same order as in the columns of gene expression matrix.
 add_global_md_clustering<-function(loom
                                  , id 
                                  , group
@@ -67,8 +67,11 @@ add_global_md_clustering<-function(loom
                                  , annotation = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[["clusterings"]]
-  unique.clusters<-sort(as.numeric(unique(clusters))-1, decreasing = F)
-  print(unique.clusters)
+  if(is.factor(clusters)) {
+    unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
+  } else {
+    unique.clusters<-sort(unique(clusters), decreasing = F)
+  }
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     description<-paste("NDA - Cluster", cluster.id)
     if(!is.null(annotation)) {
@@ -78,7 +81,6 @@ add_global_md_clustering<-function(loom
       # d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
       # Convert from factor to character vector to be used with nchar
       d<-as.character(unique(annotation[clusters == cluster.id])) 
-      print(d)
       if(length(d) > 1) {
         stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
       }
@@ -270,16 +272,16 @@ get_list_clustering_resolutions<-function(seurat) {
 #'@param seurat.markers.file.path.list        The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL. 
 #'@param default.clustering.resolution        The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default which an annotation can be set for.
 #'@param annotation                           A data.frame with annotation for the clusters of the default clustering. Default is NULL.
-#'@param annotation.cluster.id.cl             The column name to use for the IDs of the clusters found by the given clustering group. Default is NULL.
-#'@param annotation.cluster.description.cl    The column name to use for the description of the clusters found by the given clustering group. Default is NULL.
+#'@param annotation.cluster.id.cn             The column name to use for the IDs of the clusters found by the given clustering group. Default is NULL.
+#'@param annotation.cluster.description.cn    The column name to use for the description of the clusters found by the given clustering group. Default is NULL.
 #'@export
 add_seurat_clustering<-function(loom
                                 , seurat
                                 , seurat.markers.file.path.list = NULL
                                 , default.clustering.resolution = NULL
                                 , annotation = NULL
-                                , annotation.cluster.id.cl = NULL
-                                , annotation.cluster.description.cl = NULL) {
+                                , annotation.cluster.id.cn = NULL
+                                , annotation.cluster.description.cn = NULL) {
   if(!is.null(seurat.markers.file.path.list)) {
     if(is.null(names(seurat.markers.file.path.list))) {
       stop("Argument 'seurat.markers.file.path.list' is not a named list. The names should correspond to the clustering ID in Seurat object (e.g.: res.2).")
@@ -296,25 +298,26 @@ add_seurat_clustering<-function(loom
     # Add the Seurat clusters
     print("Adding Seurat clusters...")
     a<-NULL
-    ac.id.cl<-NULL
-    ac.description.cl<-NULL
+    ac.id.cn<-NULL
+    ac.description.cn<-NULL
     if(!is.null(default.clustering.resolution)) {
       if(res == default.clustering.resolution) {
         print("Adding default Seurat clusters...")
-        if(!is.null(annotation) & !is.null(annotation.cluster.id.cl) & !is.null(annotation.cluster.description.cl)) {
+        if(!is.null(annotation) & !is.null(annotation.cluster.id.cn) & !is.null(annotation.cluster.description.cn)) {
           a<-annotation
-          ac.id.cl<-annotation.cluster.id.cl
-          ac.description.cl<-annotation.cluster.description.cl
+          ac.id.cn<-annotation.cluster.id.cn
+          ac.description.cn<-annotation.cluster.description.cn
         }
         is.default.clustering<-T
       }
     }
     flush(loom = loom)
-    annotation<-create_cluster_annotation(clusters = clusters, cluster.meta.data.df = a, cluster.id.cn = ac.id.cl,  cluster.description.cn = ac.description.cl)
+    cluster.annotation<-create_cluster_annotation(clusters = cluster.ids, cluster.meta.data.df = a, cluster.id.cn = ac.id.cn,  cluster.description.cn = ac.description.cn)
     clid<-add_annotated_clustering(loom = loom
                                  , group = "Seurat"
                                  , name = paste("Seurat, resolution",res)
                                  , clusters = cluster.ids
+                                 , annotation = cluster.annotation
                                  , is.default = is.default.clustering)
     print(paste0("Clustering ID: ", clid))
     flush(loom = loom)
@@ -348,7 +351,7 @@ append_clustering_update_ca<-function(loom
                                       , clustering) {
   k<-"Clusterings"
   ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
-  colnames(clustering)<-clustering.id
+  colnames(clustering)<-as.character(clustering.id)
   # Append this clustering
   ca.clusterings<-cbind(ca.clusterings, clustering)
   update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
@@ -367,21 +370,24 @@ create_cluster_annotation<-function(clusters
                                   , cluster.id.cn =  NULL
                                   , cluster.description.cn = NULL) {
   if(is.factor(clusters)) {
-    unique.clusters<-sort(as.integer(levels(seurat@ident)), decreasing = F)
+    unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
   } else {
     unique.clusters<-sort(unique(clusters), decreasing = F)
   }
   annotation<-setNames(object = rep(NA, length(clusters)), nm = names(clusters))
   for(cluster in unique.clusters) {
-    print(cluster)
     description<-paste0("NDA - Cluster ", cluster)
-    if(!is.null(annotation.df)) {
-      description<-annotation.df[annotation.df[["id"]] == cluster, "description"]
+    if(!is.null(cluster.meta.data.df)) {
+      if(!(cluster.description.cn %in% colnames(cluster.meta.data.df))) {
+        stop(paste0("The given column ",cluster.description.cn, " does not exists in the annotation provided."))
+      }
+      description<-cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]
     }
     annotation[clusters == cluster]<-description
   }
   annotation<-factor(x = annotation)
   names(x = annotation)<-names(clusters)
+  return (annotation)
 }
 
 #'@title add_clustering
@@ -424,7 +430,6 @@ add_annotated_clustering<-function(loom
   if(length(unique(clusters)) == length(unique(annotation))) {
     # Make sure the order are the same
     annotation<-annotation[names(clusters)]
-    print("Same length")
   } else {
     # Does not seem that cluster IDs and cluster annotation correspond
     # Remap to have the same number of unique IDs as the number of unique annotation
