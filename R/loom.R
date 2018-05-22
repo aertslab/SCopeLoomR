@@ -1,6 +1,31 @@
-#
 # loom.R
 #
+
+##############################
+# Constants                  #
+##############################
+
+# Column attributes
+CA_CELLID<-"CellID"
+CA_DFLT_CLUSTERS_NAME<-"ClusterName"
+CA_DFLT_CLUSTERS_ID<-"ClusterID"
+CA_EMBEDDING_NAME<-"Embedding"
+CA_EMBEDDING_DFLT_CNAMES<-c("_X","_Y")
+CA_EXTRA_EMBEDDINGS_X_NAME<-"Embeddings_X"
+CA_EXTRA_EMBEDDINGS_Y_NAME<-"Embeddings_Y"
+CA_EXTRA_EMBEDDINGS_NAMES<-c(CA_EXTRA_EMBEDDINGS_X_NAME, CA_EXTRA_EMBEDDINGS_Y_NAME)
+CA_CLUSTERINGS_NAME<-"Clusterings"
+
+# Row attributes
+RA_CLUSTERING_MARKERS_NAME<-"ClusterMarkers"
+RA_GENE_NAME<-"Gene"
+
+# Global attributes
+GA_METADATA_NAME<-"MetaData"
+GA_TITLE_NAME<-"title"
+GA_TITLE_GENOME<-"Genome"
+GA_CREATION_DATE_NAME<-"CreationDate"
+GA_R_VERSION_NAME<-"RVersion"
 
 ##############################
 # Global Meta data functions #
@@ -65,6 +90,9 @@ add_global_md_clustering<-function(loom
                                  , name
                                  , clusters
                                  , annotation = NULL) {
+  if(sum(is.na(names(clusters))) > 0) {
+    stop("The names of the given clusters contains NAs.")
+  }
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[["clusterings"]]
   if(is.factor(clusters)) {
@@ -91,9 +119,8 @@ add_global_md_clustering<-function(loom
     return (list(id = cluster.id
                  , description = description))
   })
-  ca<-loom[["col_attrs"]]
-  clusterings<-ca[["Clusterings"]][]
-  clustering<-list(id = length(c)
+  clusterings<-get_col_attr_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)
+  clustering<-list(id = id
                  , group = group
                  , name = name
                  , clusters = clusters)
@@ -159,7 +186,7 @@ add_global_md_regulon_thresholds<-function(loom
 #'@param loom The loom file handler.
 #'@export
 get_global_meta_data<-function(loom) {
-  meta.data<-decompress_gzb64(gzb64c = h5attr(x = loom, which = "MetaData"))
+  meta.data<-decompress_gzb64(gzb64c = h5attr(x = loom, which = GA_METADATA_NAME))
   return (rjson::fromJSON(json_str = meta.data))
 }
 
@@ -170,10 +197,7 @@ get_global_meta_data<-function(loom) {
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
   compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-  # loom$attr_delete(attr_name = "MetaData")
-  # add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
-  # h5attr(x = loom, which = "MetaData")<-as.character(compressed.meta.data)
-  update_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
+  update_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
 }
 
 #'@title init_global_meta_data
@@ -185,9 +209,9 @@ init_global_meta_data<-function(loom) {
                 , clusterings = list()
                 , regulonThresholds = list())
   meta.data.json<-rjson::toJSON(meta.data)
-  if(!("MetaData"%in%list.attributes(object = loom))) {
+  if(!(GA_METADATA_NAME %in% list.attributes(object = loom))) {
     compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-    add_global_attr(loom = loom, key = "MetaData", value = as.character(compressed.meta.data))
+    add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
   } else {
     update_global_meta_data(loom = loom, meta.data.json = as.character(meta.data.json))
   }
@@ -203,8 +227,8 @@ init_global_meta_data<-function(loom) {
 #'@param embedding  The embedding to add.
 add_default_embedding<-function(loom, embedding) {
   embedding<-as.data.frame(embedding)
-  colnames(embedding)<-c("_X","_Y")
-  add_col_attr(loom = loom, key = "Embedding", value = embedding)
+  colnames(embedding)<-CA_EMBEDDING_DFLT_CNAMES
+  add_col_attr(loom = loom, key = CA_EMBEDDING_NAME, value = embedding)
 }
 
 #'@title add_embedding
@@ -218,7 +242,6 @@ add_embedding<-function(loom
                         , embedding
                         , name
                         , is.default = F) {
-  coord.labels<-c("Embeddings_X", "Embeddings_Y")
   # Add the default embedding also to Embeddings_X and Embeddings_Y
   if(is.default) {
     add_default_embedding(loom = loom, embedding = embedding)
@@ -226,22 +249,22 @@ add_embedding<-function(loom
   ca<-loom[["col_attrs"]]
   
   # Add a main embedding
-  if(sum(coord.labels%in%names(ca)) != 2) {
-    for(i in seq_along(coord.labels)) {
+  if(sum(CA_EXTRA_EMBEDDINGS_NAMES%in%names(ca)) != 2) {
+    for(i in seq_along(CA_EXTRA_EMBEDDINGS_NAMES)) {
       e<-as.data.frame(embedding[,i])
       id<-"-1"
       colnames(e)<-id
-      add_col_attr(loom = loom, key = coord.labels[i], value = e)
+      add_col_attr(loom = loom, key = CA_EXTRA_EMBEDDINGS_NAMES[i], value = e)
     }
   } else {
-    for(i in seq_along(coord.labels)) {
-      ca.embeddings<-get_col_attr_by_key(loom = loom, key = coord.labels[i])
+    for(i in seq_along(CA_EXTRA_EMBEDDINGS_NAMES)) {
+      ca.embeddings<-get_col_attr_by_key(loom = loom, key = CA_EXTRA_EMBEDDINGS_NAMES[i])
       e<-as.data.frame(embedding[,i])
       id<-as.character(ncol(ca.embeddings))
       colnames(e)<-id
       ca.embeddings<-cbind(ca.embeddings, e)
       # Update the current coordinates Embeddings
-      update_col_attr(loom = loom, key = coord.labels[i], value = as.data.frame(ca.embeddings))
+      update_col_attr(loom = loom, key = CA_EXTRA_EMBEDDINGS_NAMES[i], value = as.data.frame(ca.embeddings))
     }
   }
   flush(loom = loom)
@@ -301,7 +324,7 @@ add_seurat_clustering<-function(loom
     ac.id.cn<-NULL
     ac.description.cn<-NULL
     if(!is.null(default.clustering.resolution)) {
-      if(res == default.clustering.resolution) {
+      if(res == default.clustering.resolution | resolution.id == default.clustering.resolution) {
         print("Adding default Seurat clusters...")
         if(!is.null(annotation) & !is.null(annotation.cluster.id.cn) & !is.null(annotation.cluster.description.cn)) {
           a<-annotation
@@ -349,12 +372,11 @@ add_seurat_clustering<-function(loom
 append_clustering_update_ca<-function(loom
                                       , clustering.id
                                       , clustering) {
-  k<-"Clusterings"
-  ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
+  ca.clusterings<-get_col_attr_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)
   colnames(clustering)<-as.character(clustering.id)
   # Append this clustering
   ca.clusterings<-cbind(ca.clusterings, clustering)
-  update_col_attr(loom = loom, key = k, value = as.data.frame(x = ca.clusterings))
+  update_col_attr(loom = loom, key = CA_CLUSTERINGS_NAME, value = as.data.frame(x = ca.clusterings))
 }
 
 #'@title create_cluster_annotation
@@ -437,28 +459,33 @@ add_annotated_clustering<-function(loom
     clusters<-factor(x = as.integer(mapvalues(annotation, from = unique(x = annotation), to = seq_along(along.with = unique(x = annotation))-1)))
     names(clusters)<-names(annotation)
   }
+  cell.ids<-get_cells(loom = loom)
+  # Check if all the cells are present in the given clusters
+  n.mismatches<-sum(!(names(clusters) %in% cell.ids))
+  if(n.mismatches > 0) {
+    stop(paste0("Mismatches detected between the cell IDs (",n.mismatches,") in the given clusters object and in CellID column attribute of the .loom. Please do not use special characters for cell IDs except '_'."))
+  }
   # Order the clusters in the order defined CellID column attribute
-  clusters<-clusters[loom[["col_attrs"]][["CellID"]][]]
+  clusters<-clusters[cell.ids]
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
-    add_col_attr(loom = loom, key = "ClusterID", value = as.integer(as.character(x = clusters)))
-    add_col_attr(loom = loom, key = "ClusterName", value = as.character(x = annotation))
+    add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+    add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
   }
   # Adding the clustering data
-  k<-"Clusterings"
-  if(col_attrs_exists_by_key(loom = loom, key = k)) {
-    print("Clusterings already exists...")
-    ca.clusterings<-get_col_attr_by_key(loom = loom, key = k)
+  if(col_attrs_exists_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)) {
+    print(paste(CA_CLUSTERINGS_NAME, "already exists..."))
+    ca.clusterings<-get_col_attr_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)
     # Set the clustering id
     id<-ncol(ca.clusterings) # n clusterings (start at 0)
     clustering<-data.frame("x" = as.integer(as.character(x = clusters)))
     append_clustering_update_ca(loom = loom, clustering.id = id, clustering = clustering)
   } else {
-    print("Clusterings created...")
+    print(paste(CA_CLUSTERINGS_NAME, "created..."))
     clustering<-data.frame("x" = as.integer(as.character(x = clusters)), stringsAsFactors = F)
     colnames(clustering)<-as.character(id)
-    add_col_attr(loom = loom, key = k, value = as.data.frame(x = clustering))
+    add_col_attr(loom = loom, key = CA_CLUSTERINGS_NAME, value = as.data.frame(x = clustering))
   }
   flush(loom = loom)
   
@@ -521,7 +548,7 @@ add_scenic_regulons_auc_matrix<-function(loom
 get_cells<-function(loom
                     , is.flybase.gn = F) {
   ra<-loom[["col_attrs"]]
-  return (ra[["CellID"]][])
+  return (ra[[CA_CELLID]][])
 }
 
 ###########################
@@ -530,10 +557,10 @@ get_cells<-function(loom
 
 #'@title add_clustering_markers
 #'@description Add the clustering markers as a row attribute to the given .loom file handler.
-#'@param loom           The loom file handler.
-#'@param dgem           A matrix of the gene expression with M genes as rows and N cells as columns.
-#'@param clustering.id  The clustering id that the given clustering.markers are specific for.
-#'@param regulons       A list of list of the clustering markers.
+#'@param loom               The loom file handler.
+#'@param dgem               A matrix of the gene expression with M genes as rows and N cells as columns.
+#'@param clustering.id      The clustering id that the given clustering.markers are specific for.
+#'@param clustering.markers A list of markers for each cluster found for the given clustering.id.
 #'@export
 add_clustering_markers<-function(loom
                                , clustering.id
@@ -541,16 +568,15 @@ add_clustering_markers<-function(loom
   genes<-get_genes(loom = loom, is.flybase.gn = F)
   clustering.markers.mask<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
     cluster.name<-names(clustering.markers)[cluster.idx]
-    cluster.markers<-clustering.markers[cluster.idx]
+    cluster.markers<-clustering.markers[[cluster.idx]]
     cm.mask<-data.frame("x" = genes %in% cluster.markers, stringsAsFactors = F)
     colnames(cm.mask)<-cluster.name
     return (cm.mask)
   }))
   row.names(clustering.markers.mask)<-genes
   print(paste0("Adding markers for clustering ", clustering.id, "..."))
-  ca.clusterings<-get_col_attr_by_key(loom = loom, key = "Clusterings")
-  clustering.markers.id<-ncol(ca.clusterings)
-  add_row_attr(loom = loom, key = paste0("ClusteringMarkers_",clustering.markers.id), value = as.data.frame(x = clustering.markers.mask))
+  ca.clusterings<-get_col_attr_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)
+  add_row_attr(loom = loom, key = paste0(RA_CLUSTERING_MARKERS_NAME, "_",clustering.id), value = as.data.frame(x = clustering.markers.mask))
   flush(loom = loom)
 }
 
@@ -565,7 +591,7 @@ get_genes<-function(loom
   if(is.flybase.gn) {
     return (ra[["FBgn"]])
   }
-  return (ra[["Gene"]][])
+  return (ra[[RA_GENE_NAME]][])
 }
 
 #'@title add_fbgn
@@ -578,8 +604,10 @@ add_fbgn<-function(loom
                    , dgem
                    , fbgn.gn.mapping.file.path) {
   fbgn.gn.mapping<-utils::read.table(file = fbgn.gn.mapping.file.path, header = F, sep = "\t", quote = '', stringsAsFactors = F)
-  colnames(fbgn.gn.mapping)<-c("FBgn","Gene")
-  genes<-merge(x = data.frame("Gene"=row.names(dgem)), y = fbgn.gn.mapping, by = "Gene")
+  colnames(fbgn.gn.mapping)<-c("FBgn",RA_GENE_NAME)
+  tmp<-data.frame(row.names(dgem))
+  colnames(tmp)<-RA_GENE_NAME
+  genes<-merge(x = tmp, y = fbgn.gn.mapping, by = RA_GENE_NAME)
   add_row_attr(loom = loom, key = "FBgn", value = genes$FBgn)
 }
 
@@ -830,12 +858,17 @@ build_loom<-function(file.name
   tryCatch({
     # title
     if(!is.null(title)) {
-      add_global_attr(loom = loom, key = "title", value = as.character(title))
+      add_global_attr(loom = loom, key = GA_TITLE_NAME, value = as.character(title))
     }
     # Genome
     if(!is.null(genome)) {
-      add_global_attr(loom = loom, key = "Genome", value = as.character(genome))
+      add_global_attr(loom = loom, key = GA_TITLE_GENOME, value = as.character(genome))
     }
+    # Creation data
+    add_global_attr(loom = loom, key = GA_CREATION_DATE_NAME, value = as.character(Sys.time()))
+    # R version
+    add_global_attr(loom = loom, key = GA_R_VERSION_NAME, value = as.character(R.version.string))
+    
     cn<-colnames(dgem)
     rn<-row.names(dgem)
     print("Adding global attributes...")
@@ -853,14 +886,14 @@ build_loom<-function(file.name
     # col_attrs
     print("Adding column attributes...")
     loom$create_group("col_attrs")
-    add_col_attr(loom = loom, key = "CellID", value = as.character(cn))
+    add_col_attr(loom = loom, key = CA_CELLID, value = as.character(cn))
     print("Adding default embedding...")
     # Add the default embedding
     add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
     # row_attrs
     print("Adding row attributes...")
     loom$create_group("row_attrs")
-    add_row_attr(loom = loom, key = "Gene", value = as.character(rn))
+    add_row_attr(loom = loom, key = RA_GENE_NAME, value = as.character(rn))
     # Check if Flybase gene mapping is not empty
     if(!is.null(fbgn.gn.mapping.file.path)) {
       add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)

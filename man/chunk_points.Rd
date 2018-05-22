@@ -7,13 +7,16 @@
 chunk_points(data.size, chunk.size)
 }
 \arguments{
-\item{data.size}{How big is the data being chunked}
+\item{data.size}{How big is the data being chunked.}
 
-\item{chunk.size}{How big should each chunk be}
+\item{chunk.size}{How big should each chunk be.}
 }
 \value{
-A matrix where each column is a chunk, row 1 is start points, row 2 is end points
+A matrix where each column is a chunk, row 1 is start points, row 2 is end points.
 }
 \description{
-Generate chunk points
+Generate chunk points.
+}
+\author{
+mojaveazure
 }

@@ -7,14 +7,17 @@
 get_dtype(x)
 }
 \arguments{
-\item{x}{An R object or string describing HDF5 datatype}
+\item{x}{An R object or string describing HDF5 datatype.}
 }
 \value{
-The corresponding HDF5 data type
+The corresponding HDF5 data type.
 }
 \description{
-Get HDF5 data types
+Get HDF5 data types.
 }
 \seealso{
 \link{hdf5r::h5types}
+}
+\author{
+mojaveazure
 }

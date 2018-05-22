@@ -4,30 +4,24 @@
 \alias{add_seurat_clustering}
 \title{add_seurat_clustering}
 \usage{
-add_seurat_clustering(loom, seurat, default.clustering.resolution = NULL,
-  seurat.clustering.level = 0, parent.seurat.clustering.resolution = NULL,
-  parent.seurat.cluster.id = NULL, seurat.markers.file.path.list = NULL,
-  annotation = NULL, annotation.cluster.id.cl = NULL,
-  annotation.cluster.description.cl = NULL)
+add_seurat_clustering(loom, seurat, seurat.markers.file.path.list = NULL,
+  default.clustering.resolution = NULL, annotation = NULL,
+  annotation.cluster.id.cn = NULL, annotation.cluster.description.cn = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
 
 \item{seurat}{The Seurat object}
 
-\item{default.clustering.resolution}{The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default.}
-
-\item{seurat.clustering.level}{The clustering level of the given Seurat analysis. Default is 0.}
-
-\item{parent.seurat.clustering.resolution}{The clustering resolution of the parent clustering in case the given Seurat analysis is a sub-clustering. Default is NULL.}
-
 \item{seurat.markers.file.path.list}{The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL.}
 
-\item{annotation}{A data.frame with annotation for the clusters. Default is NULL.}
+\item{default.clustering.resolution}{The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default which an annotation can be set for.}
 
-\item{annotation.cluster.id.cl}{The column name to use for the IDs of the clusters found by the given clustering group. Default is NULL.}
+\item{annotation}{A data.frame with annotation for the clusters of the default clustering. Default is NULL.}
 
-\item{annotation.cluster.description.cl}{The column name to use for the description of the clusters found by the given clustering group. Default is NULL.}
+\item{annotation.cluster.id.cn}{The column name to use for the IDs of the clusters found by the given clustering group. Default is NULL.}
+
+\item{annotation.cluster.description.cn}{The column name to use for the description of the clusters found by the given clustering group. Default is NULL.}
 }
 \description{
 Add all the Seurat clusterings in the given seurat object to the given .loom file handler.

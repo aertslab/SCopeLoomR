@@ -2,8 +2,8 @@ Package: SCopeLoomR
 Type: Package
 Title: Build .loom Files for SCope
 Version: 0.0.6.9479
-Author: M.D.W
-Maintainer: M.D.W <mdewaegeneer@gmail.com>
+Author: mase5
+Maintainer: mase5 <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files 
     aligning with the default naming convention and 
     to integrate other data types e.g.: regulons (SCENIC), clusters from Seurat, ...

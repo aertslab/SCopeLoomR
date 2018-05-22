@@ -4,21 +4,16 @@
 \alias{add_global_md_clustering}
 \title{add_global_md_clustering}
 \usage{
-add_global_md_clustering(loom, id, level = 0, group, name, params, clusters,
-  annotation = NULL, parent.clustering.id = NULL)
+add_global_md_clustering(loom, id, group, name, clusters, annotation = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
 
-\item{group}{The name of the group of clusterings}
+\item{group}{The name of the group of clusterings.}
 
 \item{name}{The name given to the given clustering.}
 
-\item{clusters}{A list of the the cluster id for each cell present in the same order as in the columns of gene expression matrix}
-
-\item{annotation.cluster.id.cl}{The column name to use for the IDs of the clusters found by the given clustering group.}
-
-\item{annotation.cluster.description.cl}{The column name to use for the description of the clusters found by the given clustering group.}
+\item{clusters}{A list of the the cluster id for each cell present in the same order as in the columns of gene expression matrix.}
 }
 \description{
 Add the clustering annotation to the global MetaData attribute.

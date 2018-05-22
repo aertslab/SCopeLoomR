@@ -13,7 +13,7 @@ add_col_attr(loom, key, value, dtype = NULL, as.md.annotation = F)
 
 \item{value}{The value of the new added attribute.}
 
-\item{as.md.annotation}{Whether to show this attribute in the compare datasets tab}
+\item{as.md.annotation}{Whether to show this attribute in the compare datasets tab.}
 }
 \description{
 Add a new column attribute to the given .loom object accessible by the given key and containing the given value.

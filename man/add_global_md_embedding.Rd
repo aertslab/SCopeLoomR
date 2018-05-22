@@ -4,8 +4,7 @@
 \alias{add_global_md_embedding}
 \title{add_global_md_embedding}
 \usage{
-add_global_md_embedding(loom, id, name, is.default = F,
-  parent.clustering.id = NULL, cluster.id = NULL)
+add_global_md_embedding(loom, id, name, is.default = F)
 }
 \arguments{
 \item{loom}{The loom file handler.}

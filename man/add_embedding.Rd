@@ -4,9 +4,7 @@
 \alias{add_embedding}
 \title{add_embedding}
 \usage{
-add_embedding(loom, embedding, name, is.default = F,
-  parent.clustering.id = NULL, parent.clustering.id.lookup.query = NULL,
-  cluster.id = NULL)
+add_embedding(loom, embedding, name, is.default = F)
 }
 \arguments{
 \item{loom}{The loom file handler.}

@@ -10,5 +10,5 @@ init_global_md_embeddings(loom)
 \item{loom}{The loom file handler.}
 }
 \description{
-Remove all embeddings from the given loom
+Remove all embeddings from the given loom.
 }
