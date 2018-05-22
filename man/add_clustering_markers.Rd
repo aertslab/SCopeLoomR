@@ -11,9 +11,9 @@ add_clustering_markers(loom, clustering.id, clustering.markers)
 
 \item{clustering.id}{The clustering id that the given clustering.markers are specific for.}
 
-\item{dgem}{A matrix of the gene expression with M genes as rows and N cells as columns.}
+\item{clustering.markers}{A list of markers of each cluster found for the given clustering.id.}
 
-\item{regulons}{A list of list of the clustering markers.}
+\item{dgem}{A matrix of the gene expression with M genes as rows and N cells as columns.}
 }
 \description{
 Add the clustering markers as a row attribute to the given .loom file handler.

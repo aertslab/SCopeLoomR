@@ -96,12 +96,15 @@ load(paste0(scenicDir, "int/3.2_regulonAUC.RData"), verbose=TRUE)
 regulonAUC <- updateAucellResults(regulonAUC)
 add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulonAUC))
 
-# Regulons (gene list)
+# Regulons (gene list), regulon thresholds (optional) and regulon motifs (optional)
 load(paste0(scenicDir, "int/3.0_regulons_forAUCell.RData"), verbose=TRUE)
-add_scenic_regulons(loom=loom, dgem=dgem, regulons=regulons)
-
-# Add regulons thresholds
-# add_global_md_regulon_thresholds(loom=loom, regulon.threshold.assignments=...$threshold.assignment)
+regulon.enrichment.table<-read.table(file = "output/Step2_MotifEnrichment.tsv", header = T, sep = "\t", quote = '', stringsAsFactors = F)
+add_scenic_regulons(loom=loom
+                    , dgem=dgem
+                    , regulons=regulons
+                    , regulon.threshold.assignments=...$threshold.assignment # Optional
+                    , regulon.enrichment.table = regulon.enrichment.table # Optional
+                    ) 
 
 # Alternative t-SNE
 load(paste0(scenicDir, "int/3.3_tsneRegulonAUC_PCA_50pc50perpl.RData"))
@@ -121,21 +124,23 @@ seurat <- readRDS(paste0(seuratDir, "seuratObject.rds.gz"))
 # Add extra embeddings
 add_embedding(loom=loom, embedding=seurat.tsne, name="Seurat 82PC, 30perp"))
 
-# Clusterings
-seurat.resolutions <- gsub(pattern = "FindClusters.res.", replacement = "",  x=names(seurat@calc.params)[grep(pattern = "FindClusters", x=names(seurat@calc.params))])
+# Add Seurat clusterings, Seurat markers (optional) and annotation (optional) for a given resolution (default one if set)
+seurat.resolutions <- get_seurat_clustering_resolutions(seurat = seurat)
 seurat.markers.file.path.list<-do.call(what = "c", lapply(X=seurat.resolutions, FUN=function(resolution) {
   l<-list()
   l[paste0("res.",resolution)]<-paste0(paste0(seuratDir, "res.",resolution,"/Seurat_PC82_res",resolution,"_bimod_Cluster_Markers.rds.gz")
   return (l)
 }))
+
 seurat.annotation<-read.table(file = paste0(seuratDir, "Res2_Clusters.tsv", header=T, quote = '', sep = "\t", stringsAsFactors=F)
 add_seurat_clustering(loom = loom
                       , seurat = seurat
-                      , seurat.markers.file.path.list=seurat.markers.file.path.list
-                      , default.clustering.resolution = "res.2"
-                      , annotation = seurat.annotation
-                      , annotation.cluster.id.cn = "res.2"
-                      , annotation.cluster.description.cn = "Annotation") # Can be skipped
+                      , seurat.markers.file.path.list = seurat.markers.file.path.list
+                      , default.clustering.resolution = "res.2" # Optional
+                      , annotation = seurat.annotation # Optional
+                      , annotation.cluster.id.cn = "res.2" # Optional
+                      , annotation.cluster.description.cn = "Annotation" # Optional
+                      )
 ```
 
 ## Finalize (save)
