@@ -135,7 +135,7 @@ seurat.markers.file.path.list<-do.call(what = "c", lapply(X=seurat.resolutions, 
 seurat.annotation<-read.table(file = paste0(seuratDir, "Res2_Clusters.tsv", header=T, quote = '', sep = "\t", stringsAsFactors=F)
 add_seurat_clustering(loom = loom
                       , seurat = seurat
-                      , seurat.markers.file.path.list = seurat.markers.file.path.list
+                      , seurat.markers.file.path.list = seurat.markers.file.path.list # Optional
                       , default.clustering.resolution = "res.2" # Optional
                       , annotation = seurat.annotation # Optional
                       , annotation.cluster.id.cn = "res.2" # Optional

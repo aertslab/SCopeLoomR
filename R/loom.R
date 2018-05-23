@@ -1,5 +1,5 @@
 # loom.R
-#
+# 
 
 ##############################
 # Constants                  #
@@ -331,6 +331,11 @@ add_seurat_clustering<-function(loom
           ac.id.cn<-annotation.cluster.id.cn
           ac.description.cn<-annotation.cluster.description.cn
         }
+        is.default.clustering<-T
+      }
+    } else {
+      # If only one clustering resolution computed then set this one as default
+      if(length(clustering.resolutions) == 1) {
         is.default.clustering<-T
       }
     }
