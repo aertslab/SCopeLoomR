@@ -662,7 +662,7 @@ add_clustering_markers<-function(loom
       clustering.marker.metric<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
         cluster.name<-names(clustering.markers)[cluster.idx]
         # Get the current metric.name in the cluster marker table of the current cluster.name
-        cluster.markers<-clustering.markers[[cluster.idx]][, c("gene", metric.name)]
+        cluster.markers<-clustering.markers[[cluster.idx]][, c("gene", metric.accessor)]
         genes.df<-data.frame("gene" = genes, stringsAsFactors = F)
         metric.df<-merge(x = genes.df, y = cluster.markers, by = "gene", all = T)
         metric.df[is.na(metric.df)] <- 0
@@ -673,7 +673,7 @@ add_clustering_markers<-function(loom
         colnames(metric.df)<-cluster.name
         return (metric.df)
       }))
-      add_row_attr(loom = loom, key = paste0(RA_CLUSTERING_MARKERS_NAME, "_",clustering.id,"_",metric.name), value = as.data.frame(x = clustering.marker.metric))
+      add_row_attr(loom = loom, key = paste0(RA_CLUSTERING_MARKERS_NAME, "_",clustering.id,"_",metric.accessor), value = as.data.frame(x = clustering.marker.metric))
       flush(loom = loom)
       metrics.av[[length(metrics.av)+1]]<-list("accessor"=metric.accessor, "name"=metric.name, "description"=metric.description)
     }
