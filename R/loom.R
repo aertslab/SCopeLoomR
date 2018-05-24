@@ -458,23 +458,24 @@ create_cluster_annotation<-function(clusters
 
 #'@title add_clustering
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
-#'@param loom                               The loom file handler.
-#'@param group                              The for the given clustering group to which the given clusters have to be added.
-#'@param name                               The name given to this clustering.
-#'@param clusters                           A named list of the cell id and assigned the cluster id.
-#'@param is.default                         Set this clustering be set as default one.
+#'@param loom       The loom file handler.
+#'@param group      The for the given clustering group to which the given clusters have to be added.
+#'@param name       The name given to this clustering.
+#'@param clusters   A named list of the cell id and assigned the cluster id.
+#'@param is.default Set this clustering be set as default one.
 #'@export
 add_clustering<-function(loom
-                          , group
-                          , name
-                          , clusters) {
+                       , group
+                       , name
+                       , clusters
+                       , is.default = F) {
   annotation<-create_cluster_annotation(clusters = clusters)
   add_annotated_clustering(loom = loom
                            , group = group
                            , name = name
                            , clusters = clusters
                            , annotation = annotation
-                           , is.default = T)
+                           , is.default = is.default)
 }
 
 #'@title add_annotated_clustering
@@ -514,8 +515,14 @@ add_annotated_clustering<-function(loom
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
-    add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
-    add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+    if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_ID) & col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME)) {
+      warning("A default clustering has already been set. The current default clustering will be overwritten.")
+      update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+      update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+    } else {
+      add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+      add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+    }
   }
   # Adding the clustering data
   if(col_attrs_exists_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)) {
@@ -577,8 +584,8 @@ add_scenic_regulons<-function(loom
   # Add regulon thresholds
   if(!is.null(regulon.threshold.assignments)) {
     add_global_md_regulon_thresholds(loom = loom
-                                   , regulon.threshold.assignments = NULL
-                                   , regulon.enrichment.table = NULL)
+                                   , regulon.threshold.assignments = regulon.threshold.assignments
+                                   , regulon.enrichment.table = regulon.enrichment.table)
   }
   flush(loom = loom)
 }
