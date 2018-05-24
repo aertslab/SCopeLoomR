@@ -644,7 +644,7 @@ add_clustering_markers<-function(loom
       metric.description<-marker.metric.descriptions[metric.idx]
       clustering.marker.metric<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
         cluster.name<-names(clustering.markers)[cluster.idx]
-        cluster.markers<-clustering.markers[[cluster.idx]][["gene"]]
+        cluster.markers<-clustering.markers[[cluster.idx]][, c("gene", metric.name)]
         genes.df<-data.frame("gene" = genes, stringsAsFactors = F)
         metric.df<-merge(x = genes.df, y = cluster.markers, by = "gene", all = T)
         metric.df[is.na(metric.df)] <- 0
