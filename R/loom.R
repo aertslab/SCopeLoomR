@@ -78,6 +78,36 @@ add_global_md_embedding<-function(loom
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
+#'@title add_global_md_clustering_kv
+#'@description  Add given value with the given key to the clustering with the given clustering.id of the global MetaData attribute
+#'@param loom           The loom file handler.
+#'@param clustering.id  The clustering ID of the clustering which the key/value is added to.
+#'@param key            The name of the attribute to add.
+#'@param value          The value of the attribute to add.
+add_global_md_clustering_kv<-function(loom
+                                    , clustering.id
+                                    , key
+                                    , value) {
+  gmd<-get_global_meta_data(loom = loom)
+  c<-gmd[["clusterings"]]
+  
+  # Filter the clusterings based on the given clustering.id
+  mask<-lapply(c, function(x) {
+    return (x[["id"]])
+  }) == clustering.id
+  
+  if(sum(mask) == 0) {
+    stop("Cannot add key/value to clustering that do not exists.")
+  }
+  idx<-which(mask == T)
+  
+  tmp.clustering<-c[mask][[1]]
+  tmp.clustering[[key]]<-value
+  gmd[["clusterings"]][[idx]]<-tmp.clustering
+  update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
+  flush(loom = loom)
+}
+
 #'@title add_global_md_clustering
 #'@description  Add the clustering annotation to the global MetaData attribute.
 #'@param loom     The loom file handler.
@@ -301,6 +331,8 @@ get_seurat_clustering_resolutions<-function(seurat) {
 add_seurat_clustering<-function(loom
                                 , seurat
                                 , seurat.markers.file.path.list = NULL
+                                , seurat.marker.metric.names = NULL
+                                , seurat.marker.metric.description = NULL
                                 , default.clustering.resolution = NULL
                                 , annotation = NULL
                                 , annotation.cluster.id.cn = NULL
@@ -354,11 +386,12 @@ add_seurat_clustering<-function(loom
       print("Adding Seurat markers...")
       if(resolution.id %in% names(seurat.markers.file.path.list)) {
         seurat.markers<-readRDS(file = seurat.markers.file.path.list[[resolution.id]])
-        seurat.m.list<-split(x = seurat.markers, f = seurat.markers$cluster)
-        seurat.m.list<-lapply(X = seurat.m.list, function(cluster) {
-          return (cluster$gene)
-        })
-        add_clustering_markers(loom = loom, clustering.id = clid, clustering.markers = seurat.m.list)
+        seurat.markers.by.cluster<-split(x = seurat.markers, f = seurat.markers$cluster)
+        add_clustering_markers(loom = loom
+                             , clustering.id = clid
+                             , clustering.markers = seurat.markers.by.cluster
+                             , marker.metric.names = seurat.marker.metric.names
+                             , marker.metric.descriptions = seurat.marker.metric.description)
         flush(loom = loom)
       } else {
         warning(paste0("Seurat markers for clustering resolution ", res, " have not been computed."))
@@ -582,20 +615,57 @@ get_cells<-function(loom
 #'@export
 add_clustering_markers<-function(loom
                                , clustering.id
-                               , clustering.markers) {
+                               , clustering.markers
+                               , marker.metric.names = NULL
+                               , marker.metric.descriptions = NULL) {
+  # Check if a gene column is present
+  tmp<-colnames(clustering.markers[[1]])
+  if(!("gene" %in% tmp)) {
+    stop("Cannot find a 'gene' column. Please use 'gene' as column name")
+  }
+  # Add the clustering markers as a mask
   genes<-get_genes(loom = loom, is.flybase.gn = F)
   clustering.markers.mask<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
     cluster.name<-names(clustering.markers)[cluster.idx]
-    cluster.markers<-clustering.markers[[cluster.idx]]
+    cluster.markers<-clustering.markers[[cluster.idx]][["gene"]]
     cm.mask<-data.frame("x" = genes %in% cluster.markers, stringsAsFactors = F)
     colnames(cm.mask)<-cluster.name
     return (cm.mask)
   }))
   row.names(clustering.markers.mask)<-genes
   print(paste0("Adding markers for clustering ", clustering.id, "..."))
-  ca.clusterings<-get_col_attr_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)
   add_row_attr(loom = loom, key = paste0(RA_CLUSTERING_MARKERS_NAME, "_",clustering.id), value = as.data.frame(x = clustering.markers.mask))
   flush(loom = loom)
+  
+  # Add the marker metrics
+  print(paste0("Adding metrics for clustering ", clustering.id, "..."))
+  if(!is.null(marker.metric.names) & !is.null(marker.metric.descriptions)) {
+    if(length(marker.metric.names) != length(marker.metric.descriptions)) {
+      stop("The number of names in the given marker.metric.names should equal to the number of description in the given marker.metric.descriptions")
+    }
+    metrics.av<-list()
+    for(metric.idx in seq_along(along.with = marker.metric.names)) {
+      metric.name<-marker.metric.names[metric.idx]
+      metric.description<-marker.metric.descriptions[metric.idx]
+      clustering.marker.metric<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
+        cluster.name<-names(clustering.markers)[cluster.idx]
+        cluster.markers<-clustering.markers[[cluster.idx]][, c("gene", metric.name)]
+        genes.df<-data.frame("gene" = genes, stringsAsFactors = F)
+        metric.df<-merge(x = genes.df, y = cluster.markers, by = "gene", all = T)
+        metric.df[is.na(metric.df)] <- 0
+        row.names(metric.df)<-metric.df$gene
+        # Order by order of genes stored in .loom
+        metric.df<-metric.df[match(genes, metric.df$gene),]
+        metric.df[, "gene"]<-NULL
+        colnames(metric.df)<-cluster.name
+        return (metric.df)
+      }))
+      add_row_attr(loom = loom, key = paste0(RA_CLUSTERING_MARKERS_NAME, "_",clustering.id,"_",metric.name), value = as.data.frame(x = clustering.marker.metric))
+      flush(loom = loom)
+      metrics.av[[length(metrics.av)+1]]<-list("name"=metric.name, "description"=metric.description)
+    }
+    add_global_md_clustering_kv(loom = loom, clustering.id = clustering.id, key = "clusterMarkerMetrics", value = metrics.av)
+  }
 }
 
 #'@title get_genes
