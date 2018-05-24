@@ -335,6 +335,7 @@ get_seurat_clustering_resolutions<-function(seurat) {
 add_seurat_clustering<-function(loom
                                 , seurat
                                 , seurat.markers.file.path.list = NULL
+                                , seurat.marker.metric.accessors = NULL
                                 , seurat.marker.metric.names = NULL
                                 , seurat.marker.metric.description = NULL
                                 , default.clustering.resolution = NULL
@@ -394,6 +395,7 @@ add_seurat_clustering<-function(loom
         add_clustering_markers(loom = loom
                              , clustering.id = clid
                              , clustering.markers = seurat.markers.by.cluster
+                             , marker.metric.accessors = seurat.marker.metric.accessors
                              , marker.metric.names = seurat.marker.metric.names
                              , marker.metric.descriptions = seurat.marker.metric.description)
         flush(loom = loom)
