@@ -22,6 +22,10 @@ RA_GENE_NAME<-"Gene"
 
 # Global attributes
 GA_METADATA_NAME<-"MetaData"
+GA_METADATA_ANNOTATIONS_NAME<-"annotations"
+GA_METADATA_CLUSTERINGS_NAME<-"clusterings"
+GA_METADATA_EMBEDDINGS_NAME<-"embeddings"
+GA_METADATA_CLUSTERINGS_CLUSTER_MARKER_METRICS_NAME<-"clusterMarkerMetrics"
 GA_TITLE_NAME<-"title"
 GA_TITLE_GENOME<-"Genome"
 GA_CREATION_DATE_NAME<-"CreationDate"
@@ -40,10 +44,10 @@ add_global_md_annotation<-function(loom
                                  , name
                                  , values) {
   gmd<-get_global_meta_data(loom = loom)
-  a<-gmd[["annotations"]]
+  a<-gmd[[GA_METADATA_ANNOTATIONS_NAME]]
   a[[length(a)+1]]<-list(name = name, values = as.list(as.character(unique(values))))
-  gmd[["annotations"]]<-NULL
-  gmd[["annotations"]]<-a
+  gmd[[GA_METADATA_ANNOTATIONS_NAME]]<-NULL
+  gmd[[GA_METADATA_ANNOTATIONS_NAME]]<-a
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
@@ -53,8 +57,8 @@ add_global_md_annotation<-function(loom
 #'@export
 init_global_md_embeddings<-function(loom) {
   gmd<-get_global_meta_data(loom = loom)
-  gmd[["embeddings"]]<-NULL
-  gmd[["embeddings"]]<-list()
+  gmd[[GA_METADATA_EMBEDDINGS_NAME]]<-NULL
+  gmd[[GA_METADATA_EMBEDDINGS_NAME]]<-list()
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
@@ -68,13 +72,13 @@ add_global_md_embedding<-function(loom
                                 , name
                                 , is.default = F) {
   gmd<-get_global_meta_data(loom = loom)
-  e<-gmd[["embeddings"]]
+  e<-gmd[[GA_METADATA_EMBEDDINGS_NAME]]
   
   e[[length(e)+1]]<-list(id = as.character(id)
                          , name = name
   )
-  gmd[["embeddings"]]<-NULL
-  gmd[["embeddings"]]<-e
+  gmd[[GA_METADATA_EMBEDDINGS_NAME]]<-NULL
+  gmd[[GA_METADATA_EMBEDDINGS_NAME]]<-e
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
@@ -89,7 +93,7 @@ add_global_md_clustering_kv<-function(loom
                                     , key
                                     , value) {
   gmd<-get_global_meta_data(loom = loom)
-  c<-gmd[["clusterings"]]
+  c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
   
   # Filter the clusterings based on the given clustering.id
   mask<-lapply(c, function(x) {
@@ -103,7 +107,7 @@ add_global_md_clustering_kv<-function(loom
   
   tmp.clustering<-c[mask][[1]]
   tmp.clustering[[key]]<-value
-  gmd[["clusterings"]][[idx]]<-tmp.clustering
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]][[idx]]<-tmp.clustering
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   flush(loom = loom)
 }
@@ -124,7 +128,7 @@ add_global_md_clustering<-function(loom
     stop("The names of the given clusters contains NAs.")
   }
   gmd<-get_global_meta_data(loom = loom)
-  c<-gmd[["clusterings"]]
+  c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
   if(is.factor(clusters)) {
     unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
   } else {
@@ -155,8 +159,8 @@ add_global_md_clustering<-function(loom
                  , name = name
                  , clusters = clusters)
   c[[length(c)+1]]<-clustering
-  gmd[["clusterings"]]<-NULL
-  gmd[["clusterings"]]<-c
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-NULL
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-c
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   flush(loom = loom)
 }
@@ -603,14 +607,18 @@ get_cells<-function(loom
 
 #'@title add_clustering_markers
 #'@description Add the clustering markers as a row attribute to the given .loom file handler.
-#'@param loom               The loom file handler.
-#'@param dgem               A matrix of the gene expression with M genes as rows and N cells as columns.
-#'@param clustering.id      The clustering id that the given clustering.markers are specific for.
-#'@param clustering.markers A list of markers of each cluster found for the given clustering.id.
+#'@param loom                       The loom file handler.
+#'@param dgem                       A matrix of the gene expression with M genes as rows and N cells as columns.
+#'@param clustering.id              The clustering id that the given clustering.markers are specific for.
+#'@param clustering.markers         A list of markers of each cluster found for the given clustering.id.
+#'@param marker.metric.accessors    A list of the column names of the metrics to extract from the cluster marker data.frame in the given clustering.markers.
+#'@param marker.metric.names        A list of names to attribute to the given marker.metric.accessor.
+#'@param marker.metric.descriptions A list of description to attribute to the given marker.metric.accessor.
 #'@export
 add_clustering_markers<-function(loom
                                , clustering.id
                                , clustering.markers
+                               , marker.metric.accessors = NULL
                                , marker.metric.names = NULL
                                , marker.metric.descriptions = NULL) {
   # Check if a gene column is present
@@ -634,16 +642,19 @@ add_clustering_markers<-function(loom
   
   # Add the marker metrics
   print(paste0("Adding metrics for clustering ", clustering.id, "..."))
-  if(!is.null(marker.metric.names) & !is.null(marker.metric.descriptions)) {
-    if(length(marker.metric.names) != length(marker.metric.descriptions)) {
-      stop("The number of names in the given marker.metric.names should equal to the number of description in the given marker.metric.descriptions")
+  # Check all marker metric vectors have the same length
+  if(!is.null(marker.metric.accessors) & !is.null(marker.metric.names) & !is.null(marker.metric.descriptions)) {
+    if(!all(lapply(list(marker.metric.accessors,marker.metric.names,marker.metric.descriptions),length) == length(marker.metric.accessors))) {
+      stop("The given marker.metric.accessors, marker.metric.names and marker.metric.descriptions should have the same length.")
     }
     metrics.av<-list()
     for(metric.idx in seq_along(along.with = marker.metric.names)) {
+      metric.accessor<-marker.metric.accessors[metric.idx]
       metric.name<-marker.metric.names[metric.idx]
       metric.description<-marker.metric.descriptions[metric.idx]
       clustering.marker.metric<-do.call(what = "cbind", args = lapply(seq_along(clustering.markers), function(cluster.idx) {
         cluster.name<-names(clustering.markers)[cluster.idx]
+        # Get the current metric.name in the cluster marker table of the current cluster.name
         cluster.markers<-clustering.markers[[cluster.idx]][, c("gene", metric.name)]
         genes.df<-data.frame("gene" = genes, stringsAsFactors = F)
         metric.df<-merge(x = genes.df, y = cluster.markers, by = "gene", all = T)
@@ -657,9 +668,9 @@ add_clustering_markers<-function(loom
       }))
       add_row_attr(loom = loom, key = paste0(RA_CLUSTERING_MARKERS_NAME, "_",clustering.id,"_",metric.name), value = as.data.frame(x = clustering.marker.metric))
       flush(loom = loom)
-      metrics.av[[length(metrics.av)+1]]<-list("name"=metric.name, "description"=metric.description)
+      metrics.av[[length(metrics.av)+1]]<-list("accessor"=metric.accessor, "name"=metric.name, "description"=metric.description)
     }
-    add_global_md_clustering_kv(loom = loom, clustering.id = clustering.id, key = "clusterMarkerMetrics", value = metrics.av)
+    add_global_md_clustering_kv(loom = loom, clustering.id = clustering.id, key = GA_METADATA_CLUSTERINGS_CLUSTER_MARKER_METRICS_NAME, value = metrics.av)
   }
 }
 
