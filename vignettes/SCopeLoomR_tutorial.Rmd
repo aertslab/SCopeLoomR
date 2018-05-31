@@ -1,13 +1,13 @@
 ---
 title: "SCopeLoomR tutorial"
-package: `r pkg_ver('SCopeLoomR')`
+package: r pkg_ver('SCopeLoomR')
 output:
-  html_document:
-    df_print: paged
+  html_notebook:
     toc: yes
   BiocStyle::html_document:
     number_sections: no
-  html_notebook:
+  html_document:
+    df_print: paged
     toc: yes
   pdf_document:
     toc: yes
@@ -31,7 +31,7 @@ library(SingleCellExperiment)
 For example:
 ```{r install, eval=FALSE}
 devtools::install_github("aertlab/SCopeLoomR")
-# or install.packages("./SCopeLoomR_0.0.5.6558", source=TRUE, repos=NULL)
+# or install.packages("./SCopeLoomR_0.0.8.120", source=TRUE, repos=NULL)
 ```
 
 # Creating a loom object
@@ -53,15 +53,15 @@ dgem <- counts(sce)
   head(colnames(dgem))  #should contain the Cell ID/name
 
 # Known cell information/annotation  
-cellInfo <- colData(sce)
-cellInfo$nGene <- colSums(dgem>0)
-  head(cellInfo)
+cell.info <- colData(sce)
+cell.info$nGene <- colSums(dgem>0)
+  head(cell.info)
 
 # Default embedding (e.g. t-SNE or PCA coordinates)
 data(tSNE_expr)
-defaultTsne <- tSNE_expr
-defaultTsne_name <- "t-SNE on full expression matrix"
-head(defaultTsne)
+default.tsne <- tSNE_expr
+default.tne.name <- "t-SNE on full expression matrix"
+head(default.tsne)
 ```
 
 ## Create loom file 
@@ -70,17 +70,17 @@ head(defaultTsne)
 library(SCopeLoomR)
 
 ### Create the minimal loom file
-fileName <- "example.loom"
-loom <- build_loom(file.name=fileName,
+file.name <- "example.loom"
+loom <- build_loom(file.name=file.name,
                    dgem=dgem,
                    title="Fake expression dataset for examples",
                    genome="Mouse", # Just for user information, not used internally
-                   default.embedding=defaultTsne,
-                   default.embedding.name=defaultTsne_name)
+                   default.embedding=default.tsne,
+                   default.embedding.name=default.tne.name)
 
 # Add annotation
-add_col_attr(loom=loom, key = "Cell type", value=cellInfo$cellType, as.md.annotation=T) # as.md.annotation: to plot on tSNE
-add_col_attr(loom=loom, key = "nGene", value=cellInfo$nGene)
+add_col_attr(loom=loom, key = "Cell type", value=cell.info$cellType, as.md.annotation=T) # as.md.annotation: to plot on tSNE
+add_col_attr(loom=loom, key = "nGene", value=cell.info$nGene)
 ```
 
 ## Add SCENIC results (Optional)
@@ -88,60 +88,85 @@ add_col_attr(loom=loom, key = "nGene", value=cellInfo$nGene)
 *(Not run in this example)*
 
 ```{r addSCENIC, eval=FALSE}
-scenicDir <- "./" # Modify if needed
+scenic.dir <- "./" # Modify if needed
 
 # Regulons AUC matrix
 library(AUCell)
-load(paste0(scenicDir, "int/3.2_regulonAUC.RData"), verbose=TRUE)
-regulonAUC <- updateAucellResults(regulonAUC)
-add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulonAUC))
+load(paste0(scenic.dir, "int/3.2_regulonAUC.RData"), verbose=TRUE)
+regulons.AUC <- updateAucellResults(regulonAUC)
+add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulons.AUC))
 
 # Regulons (gene list), regulon thresholds (optional) and regulon motifs (optional)
-load(paste0(scenicDir, "int/3.0_regulons_forAUCell.RData"), verbose=TRUE)
+load(paste0(scenic.dir, "int/3.0_regulons_forAUCell.RData"), verbose=TRUE)
 regulon.enrichment.table<-read.table(file = "output/Step2_MotifEnrichment.tsv", header = T, sep = "\t", quote = '', stringsAsFactors = F)
 add_scenic_regulons(loom=loom
                     , dgem=dgem
                     , regulons=regulons
                     , regulon.threshold.assignments=...$threshold.assignment # Optional
-                    , regulon.enrichment.table = regulon.enrichment.table # Optional
-                    ) 
+                    , regulon.enrichment.table = regulon.enrichment.table # Optional) 
 
 # Alternative t-SNE
-load(paste0(scenicDir, "int/3.3_tsneRegulonAUC_PCA_50pc50perpl.RData"))
+load(paste0(scenic.dir, "int/3.3_tsneRegulonAUC_PCA_50pc50perpl.RData"))
 add_embedding(loom=loom, embedding=tSNE$Y, name="SCENIC (t-SNE on AUC)")
 ```
 
-## Add SEURAT results (Optional)
+## Add Seurat results (Optional)
 
 *(Not run in this example. You would need to use your own file names)*
 
-
 ```{r addSEURAT, eval=FALSE}
-seuratDir <- "Seurat_output/"
-seurat.tsne <- readRDS(file = paste0(seuratDir, "seurat_tsne.rds.gz"))
-seurat <- readRDS(paste0(seuratDir, "seuratObject.rds.gz"))
+seurat.dir <- "Seurat_output/"
+seurat.tsne <- readRDS(file = paste0(seurat.dir, "seurat_tsne.rds.gz"))
+seurat <- readRDS(paste0(seurat.dir, "seuratObject.rds.gz"))
 
 # Add extra embeddings
 add_embedding(loom=loom, embedding=seurat.tsne, name="Seurat 82PC, 30perp"))
+```
 
-# Add Seurat clusterings, Seurat markers (optional) and annotation (optional) for a given resolution (default one if set)
+### Add clusterings
+
+# Add clustering(s)
+```{r}
+add_seurat_clustering(loom = loom
+                      , seurat = seurat)
+```
+
+### Add clustering(s) along with annotation for a given resolution (default one if set)
+```{r}
+seurat.annotation<-read.table(file = paste0(seuratDir, "Res2_Clusters.tsv", header=T, quote = '', sep = "\t", stringsAsFactors=F))
+add_seurat_clustering(loom = loom
+                      , seurat = seurat
+                      , default.clustering.resolution = "res.2"
+                      , annotation = seurat.annotation
+                      , annotation.cluster.id.cn = "res.2" 
+                      , annotation.cluster.description.cn = "Annotation")
+```
+
+### Add clustering(s) along with cluster markers 
+```{r}
 seurat.resolutions <- get_seurat_clustering_resolutions(seurat = seurat)
 seurat.markers.file.path.list<-do.call(what = "c", lapply(X=seurat.resolutions, FUN=function(resolution) {
   l<-list()
-  l[paste0("res.",resolution)]<-paste0(paste0(seuratDir, "res.",resolution,"/Seurat_PC82_res",resolution,"_bimod_Cluster_Markers.rds.gz")
+  l[paste0("res.",resolution)]<-paste0(seuratDir, "res.",resolution,"/Seurat_PC82_res",resolution,"_bimod_Cluster_Markers.rds.gz")
   return (l)
 }))
-
-seurat.annotation<-read.table(file = paste0(seuratDir, "Res2_Clusters.tsv", header=T, quote = '', sep = "\t", stringsAsFactors=F)
 add_seurat_clustering(loom = loom
                       , seurat = seurat
-                      , seurat.markers.file.path.list = seurat.markers.file.path.list # Optional
-                      , default.clustering.resolution = "res.2" # Optional
-                      , annotation = seurat.annotation # Optional
-                      , annotation.cluster.id.cn = "res.2" # Optional
-                      , annotation.cluster.description.cn = "Annotation" # Optional
-                      )
+                      , seurat.markers.file.path.list = seurat.markers.file.path.list)
 ```
+
+### Add clustering(s), along with cluster markers and metrics (e.g.: logFC, p-value, ...)
+
+```{r}
+add_seurat_clustering(loom = loom
+                      , seurat = seurat
+                      , seurat.markers.file.path.list = seurat.markers.file.path.list
+                      , seurat.marker.metric.accessors = c("avg_logFC", "p_val_adj")
+                      , seurat.marker.metric.names = c("Avg. logFC", "Adj. p-value")
+                      , seurat.marker.metric.description = c("Average log fold change from Wilcox differential test (cfr. Seurat)"
+                                                             , "Adjusted p-value using Bonferroni correction based on the total number of genes in the dataset (cfr. Seurat)"))
+```
+
 
 ## Finalize (save)
 ```{r finalize}

@@ -4,7 +4,7 @@
 \alias{add_clustering}
 \title{add_clustering}
 \usage{
-add_clustering(loom, group, name, clusters)
+add_clustering(loom, group, name, clusters, is.default = F)
 }
 \arguments{
 \item{loom}{The loom file handler.}
