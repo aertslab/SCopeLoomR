@@ -2,13 +2,13 @@
 title: "SCopeLoomR tutorial"
 package: r pkg_ver('SCopeLoomR')
 output:
+  html_document:
+    df_print: paged
+    toc: yes
   html_notebook:
     toc: yes
   BiocStyle::html_document:
     number_sections: no
-  html_document:
-    df_print: paged
-    toc: yes
   pdf_document:
     toc: yes
 vignette: |
@@ -41,9 +41,8 @@ devtools::install_github("aertlab/SCopeLoomR")
 (minimum information required to create the object)
 
 ```{r loadData}
-library(hdf5r, rjson, utils, methods, base, base64enc) # if installed from source file (SCopeLoomR_0.0.5.6558.tar.gz)
-library(SCopeLoomR)
 library(SingleCellExperiment)
+library(SCopeLoomR)
 data(sce) # e.g. a SingleCellExperiment 
 
 # DGEM (Digital gene expression matrix)
@@ -125,7 +124,6 @@ add_embedding(loom=loom, embedding=seurat.tsne, name="Seurat 82PC, 30perp"))
 
 ### Add clusterings
 
-# Add clustering(s)
 ```{r}
 add_seurat_clustering(loom = loom
                       , seurat = seurat)
