@@ -31,6 +31,43 @@ GA_TITLE_GENOME<-"Genome"
 GA_CREATION_DATE_NAME<-"CreationDate"
 GA_R_VERSION_NAME<-"RVersion"
 
+###################################
+# Global attribute data functions #
+###################################
+
+#'@title create_hierarchy
+#'@description      Create hierarchy as named list of tree levels (SCopeTreeL1, SCopeTreeL2, SCopeTreeL3)
+#'@param level.1.name  Name of top level of the hierarchy.
+#'@param level.2.name  Name of the second level of the hierarchy.
+#'@param level.3.name  Name of the third level of the hierarchy.
+#'@export
+create_hierarchy<-function(level.1.name = NULL
+                         , level.2.name = NULL
+                         , level.3.name = NULL) {
+  if(is.null(level.1.name))
+    stop("You need to define at least the first level when creating a hierarchy.")
+  if(is.null(level.2.name) && !is.null(level.3.name))
+    stop("You cannot define the third level while the second level is not defined.")
+  if(is.null(level.1.name))
+    level.1.name<-""
+  if(is.null(level.2.name))
+    level.2.name<-""
+  if(is.null(level.3.name))
+    level.3.name<-""
+  return (list("SCopeTreeL1"=level.1.name, "SCopeTreeL2"=level.2.name, "SCopeTreeL3"=level.3.name))
+}
+
+#'@title add_hierarchy
+#'@description      Add a 3-level hierarchy as global attributes to the given loom.
+#'@param loom       The loom file handler.
+#'@param hierarchy  A named list of the 3-levels names. Use create_hierarchy() to build it.
+#'@export
+add_hierarchy<-function(loom, hierarchy) {
+  for(idx in seq_along(hierarchy)) {
+    add_global_attr(loom = loom, key = names(hierarchy)[idx], value = hierarchy[[idx]])
+  }
+}
+
 ##############################
 # Global Meta data functions #
 ##############################
@@ -571,7 +608,7 @@ add_scenic_regulons<-function(loom
   # Add regulons
   regulons.mask<-do.call(what = "cbind", args = lapply(seq_along(regulons), function(regulon.idx) {
     reg.name<-names(regulons)[regulon.idx]
-    reg.genes<-regulons[regulon.idx]
+    reg.genes<-regulons[[regulon.idx]]
     reg.mask<-data.frame("x"=row.names(dgem)%in%reg.genes, stringsAsFactors = F)
     colnames(reg.mask)<-reg.name
     return (reg.mask)
@@ -949,9 +986,15 @@ finalize<-function(loom) {
 #'@title build_loom
 #'@description build_loom
 #'@param file.name                  A string naming the .loom file to be generated.
+#'@param title                      A short description of content of loom.
+#'@param genome                     The genome used for the mapping.
 #'@param dgem                       A matrix of the gene expression with M genes as rows and N cells as columns.
 #'@param default.embedding          A M-by-2 data.frame of the embedding (X and Y coordinates) of the cells.
+#'@param default.embedding.name     A description name for the given default.embedding
+#'@param hierarchy                  A named list of the 3 hierarchy levels that can be used to group looms in SCope. Use create_hierarchy().
 #'@param fbgn.gn.mapping.file.path  A N-by-2 data.frame containing the mapping between the Flybase gene and the gene symbol.
+#'@param chunk.size                 The size of chunk of the gene expression matrix.
+#'@param display.progress           Display progress when adding the gene expression matrix.
 #'@export
 build_loom<-function(file.name
                      , title = NULL
@@ -959,11 +1002,13 @@ build_loom<-function(file.name
                      , dgem
                      , default.embedding
                      , default.embedding.name
+                     , hierarchy = NULL
                      , fbgn.gn.mapping.file.path = NULL
                      , chunk.size = 1000
                      , display.progress = T) {
   loom<-H5File$new(filename = file.name, mode = "w")
   tryCatch({
+    print("Adding global attributes...")
     # title
     if(!is.null(title)) {
       add_global_attr(loom = loom, key = GA_TITLE_NAME, value = as.character(title))
@@ -979,9 +1024,13 @@ build_loom<-function(file.name
     
     cn<-colnames(dgem)
     rn<-row.names(dgem)
-    print("Adding global attributes...")
     # global MetaData attribute
     init_global_meta_data(loom = loom)
+    
+    # Add hierarchy levels
+    if(!is.null(hierarchy)) {
+      add_hierarchy(loom = loom, hierarchy = hierarchy)
+    }
     # matrix
     # Check the type of the sparse matrix
     # convert to dgCMatrix if necessary to speedup populating the matrix slot

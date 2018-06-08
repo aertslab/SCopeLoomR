@@ -77,6 +77,9 @@ loom <- build_loom(file.name=file.name,
                    default.embedding=default.tsne,
                    default.embedding.name=default.tne.name)
 
+### Add hierarchy (usefull to group .loom files in SCope)
+add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "Mouse", level.2.name = "Toy Datasets", level.3.name = ""))
+
 # Add annotation
 add_col_attr(loom=loom, key = "Cell type", value=cell.info$cellType, as.md.annotation=T) # as.md.annotation: to plot on tSNE
 add_col_attr(loom=loom, key = "nGene", value=cell.info$nGene)
