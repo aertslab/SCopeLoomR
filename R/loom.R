@@ -386,62 +386,74 @@ add_seurat_clustering<-function(loom
   }
   
   clustering.resolutions<-get_seurat_clustering_resolutions(seurat)
-  for(res in clustering.resolutions) {
-    resolution.id<-paste0("res.",res)
-    print(paste0("Seurat resolution ", res))
-    seurat<-Seurat::SetAllIdent(object=seurat, id=resolution.id)
-    cluster.ids<-seurat@ident
-    is.default.clustering<-F
-    # Add the Seurat clusters
-    print("Adding Seurat clusters...")
-    a<-NULL
-    ac.id.cn<-NULL
-    ac.description.cn<-NULL
-    if(!is.null(default.clustering.resolution)) {
-      if(res == default.clustering.resolution | resolution.id == default.clustering.resolution) {
-        print("Adding default Seurat clusters...")
-        if(!is.null(annotation) & !is.null(annotation.cluster.id.cn) & !is.null(annotation.cluster.description.cn)) {
-          a<-annotation
-          ac.id.cn<-annotation.cluster.id.cn
-          ac.description.cn<-annotation.cluster.description.cn
+  if(length(clustering.resolutions) > 0) {
+    for(res in clustering.resolutions) {
+      resolution.id<-paste0("res.",res)
+      print(paste0("Seurat resolution ", res))
+      seurat<-Seurat::SetAllIdent(object=seurat, id=resolution.id)
+      cluster.ids<-seurat@ident
+      is.default.clustering<-F
+      # Add the Seurat clusters
+      print("Adding Seurat clusters...")
+      a<-NULL
+      ac.id.cn<-NULL
+      ac.description.cn<-NULL
+      if(!is.null(default.clustering.resolution)) {
+        if(res == default.clustering.resolution | resolution.id == default.clustering.resolution) {
+          print("Adding default Seurat clusters...")
+          if(!is.null(annotation) & !is.null(annotation.cluster.id.cn) & !is.null(annotation.cluster.description.cn)) {
+            a<-annotation
+            ac.id.cn<-annotation.cluster.id.cn
+            ac.description.cn<-annotation.cluster.description.cn
+          }
+          is.default.clustering<-T
         }
-        is.default.clustering<-T
-      }
-    } else {
-      # If only one clustering resolution computed then set this one as default
-      if(length(clustering.resolutions) == 1) {
-        is.default.clustering<-T
-      }
-    }
-    flush(loom = loom)
-    cluster.annotation<-create_cluster_annotation(clusters = cluster.ids, cluster.meta.data.df = a, cluster.id.cn = ac.id.cn,  cluster.description.cn = ac.description.cn)
-    clid<-add_annotated_clustering(loom = loom
-                                 , group = "Seurat"
-                                 , name = paste("Seurat, resolution",res)
-                                 , clusters = cluster.ids
-                                 , annotation = cluster.annotation
-                                 , is.default = is.default.clustering)
-    print(paste0("Clustering ID: ", clid))
-    flush(loom = loom)
-    # Add the Seurat markers if not empty
-    if(!is.null(seurat.markers.file.path.list)) {
-      print("Adding Seurat markers...")
-      if(resolution.id %in% names(seurat.markers.file.path.list)) {
-        seurat.markers<-readRDS(file = seurat.markers.file.path.list[[resolution.id]])
-        seurat.markers.by.cluster<-split(x = seurat.markers, f = seurat.markers$cluster)
-        add_clustering_markers(loom = loom
-                             , clustering.id = clid
-                             , clustering.markers = seurat.markers.by.cluster
-                             , marker.metric.accessors = seurat.marker.metric.accessors
-                             , marker.metric.names = seurat.marker.metric.names
-                             , marker.metric.descriptions = seurat.marker.metric.description)
-        flush(loom = loom)
       } else {
-        warning(paste0("Seurat markers for clustering resolution ", res, " have not been computed."))
+        # If only one clustering resolution computed then set this one as default
+        if(length(clustering.resolutions) == 1) {
+          is.default.clustering<-T
+        }
       }
-    } else {
-      print("No Seurat markers added.")
+      flush(loom = loom)
+      cluster.annotation<-create_cluster_annotation(clusters = cluster.ids, cluster.meta.data.df = a, cluster.id.cn = ac.id.cn,  cluster.description.cn = ac.description.cn)
+      clid<-add_annotated_clustering(loom = loom
+                                   , group = "Seurat"
+                                   , name = paste("Seurat, resolution",res)
+                                   , clusters = cluster.ids
+                                   , annotation = cluster.annotation
+                                   , is.default = is.default.clustering)
+      print(paste0("Clustering ID: ", clid))
+      flush(loom = loom)
+      # Add the Seurat markers if not empty
+      if(!is.null(seurat.markers.file.path.list)) {
+        print("Adding Seurat markers...")
+        if(resolution.id %in% names(seurat.markers.file.path.list)) {
+          seurat.markers<-readRDS(file = seurat.markers.file.path.list[[resolution.id]])
+          seurat.markers.by.cluster<-split(x = seurat.markers, f = seurat.markers$cluster)
+          add_clustering_markers(loom = loom
+                               , clustering.id = clid
+                               , clustering.markers = seurat.markers.by.cluster
+                               , marker.metric.accessors = seurat.marker.metric.accessors
+                               , marker.metric.names = seurat.marker.metric.names
+                               , marker.metric.descriptions = seurat.marker.metric.description)
+          flush(loom = loom)
+        } else {
+          warning(paste0("Seurat markers for clustering resolution ", res, " have not been computed."))
+        }
+      } else {
+        print("No Seurat markers added.")
+      }
     }
+  } else {
+    warning("It seems that you are using an old version of Seurat.")
+    print("Adding Seurat clusters...")
+    cluster.annotation<-create_cluster_annotation(clusters = seurat@ident, cluster.meta.data.df = annotation, cluster.id.cn = annotation.cluster.id.cn,  cluster.description.cn = annotation.cluster.description.cn)
+    clid<-add_annotated_clustering(loom = loom
+                                   , group = "Seurat"
+                                   , name = "Seurat, resolution undefined"
+                                   , clusters = seurat@ident
+                                   , annotation = cluster.annotation
+                                   , is.default = T)
   }
 }
 
