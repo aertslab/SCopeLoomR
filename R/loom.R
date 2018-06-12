@@ -31,6 +31,12 @@ GA_TITLE_GENOME<-"Genome"
 GA_CREATION_DATE_NAME<-"CreationDate"
 GA_R_VERSION_NAME<-"RVersion"
 
+#*******************#
+#*******************#
+#  DATA INSERTION   #
+#*******************#
+#*******************#
+
 ###################################
 # Global attribute data functions #
 ###################################
@@ -316,6 +322,8 @@ add_embedding<-function(loom
   # Add the default embedding also to Embeddings_X and Embeddings_Y
   if(is.default) {
     add_default_embedding(loom = loom, embedding = embedding)
+  } else {
+    print(paste0("Adding embedding ", name, "..."))
   }
   ca<-loom[["col_attrs"]]
   
@@ -428,15 +436,19 @@ add_seurat_clustering<-function(loom
       if(!is.null(seurat.markers.file.path.list)) {
         print("Adding Seurat markers...")
         if(resolution.id %in% names(seurat.markers.file.path.list)) {
-          seurat.markers<-readRDS(file = seurat.markers.file.path.list[[resolution.id]])
-          seurat.markers.by.cluster<-split(x = seurat.markers, f = seurat.markers$cluster)
-          add_clustering_markers(loom = loom
-                               , clustering.id = clid
-                               , clustering.markers = seurat.markers.by.cluster
-                               , marker.metric.accessors = seurat.marker.metric.accessors
-                               , marker.metric.names = seurat.marker.metric.names
-                               , marker.metric.descriptions = seurat.marker.metric.description)
-          flush(loom = loom)
+          if(file.exists(seurat.markers.file.path.list[[resolution.id]])) {
+            seurat.markers<-readRDS(file = seurat.markers.file.path.list[[resolution.id]])
+            seurat.markers.by.cluster<-split(x = seurat.markers, f = seurat.markers$cluster)
+            add_clustering_markers(loom = loom
+                                 , clustering.id = clid
+                                 , clustering.markers = seurat.markers.by.cluster
+                                 , marker.metric.accessors = seurat.marker.metric.accessors
+                                 , marker.metric.names = seurat.marker.metric.names
+                                 , marker.metric.descriptions = seurat.marker.metric.description)
+            flush(loom = loom)
+          } else {
+            warning(paste0("Missing Seurat markers file for clustering resolution ", res, "."))
+          }
         } else {
           warning(paste0("Seurat markers for clustering resolution ", res, " have not been computed."))
         }
@@ -553,7 +565,7 @@ add_annotated_clustering<-function(loom
     clusters<-factor(x = as.integer(mapvalues(annotation, from = unique(x = annotation), to = seq_along(along.with = unique(x = annotation))-1)))
     names(clusters)<-names(annotation)
   }
-  cell.ids<-get_cells(loom = loom)
+  cell.ids<-get_cell_ids(loom = loom)
   # Check if all the cells are present in the given clusters
   n.mismatches<-sum(!(names(clusters) %in% cell.ids))
   if(n.mismatches > 0) {
@@ -651,21 +663,7 @@ add_scenic_regulons_auc_matrix<-function(loom
 }
 
 ###########################
-# Col Meta data functions #
-###########################
-
-#'@title get_cells
-#'@description Get the cell names
-#'@param loom           The loom file handler.
-#'@export
-get_cells<-function(loom
-                    , is.flybase.gn = F) {
-  ra<-loom[["col_attrs"]]
-  return (ra[[CA_CELLID]][])
-}
-
-###########################
-# Row Meta data functions #
+# Row data functions      #
 ###########################
 
 #'@title add_clustering_markers
@@ -704,12 +702,12 @@ add_clustering_markers<-function(loom
   flush(loom = loom)
   
   # Add the marker metrics
-  print(paste0("Adding metrics for clustering ", clustering.id, "..."))
   # Check all marker metric vectors have the same length
   if(!is.null(marker.metric.accessors) & !is.null(marker.metric.names) & !is.null(marker.metric.descriptions)) {
     if(!all(lapply(list(marker.metric.accessors,marker.metric.names,marker.metric.descriptions),length) == length(marker.metric.accessors))) {
       stop("The given marker.metric.accessors, marker.metric.names and marker.metric.descriptions should have the same length.")
     }
+    print(paste0("Adding metrics for clustering ", clustering.id, "..."))
     metrics.av<-list()
     for(metric.idx in seq_along(along.with = marker.metric.names)) {
       metric.accessor<-marker.metric.accessors[metric.idx]
@@ -735,20 +733,6 @@ add_clustering_markers<-function(loom
     }
     add_global_md_clustering_kv(loom = loom, clustering.id = clustering.id, key = GA_METADATA_CLUSTERINGS_CLUSTER_MARKER_METRICS_NAME, value = metrics.av)
   }
-}
-
-#'@title get_genes
-#'@description Get the gene names either symbols or Flybase gene identifiers.
-#'@param loom           The loom file handler.
-#'@param is.flybase.gn  Whether to retrieve the Flybase gene identifiers or not.
-#'@export
-get_genes<-function(loom
-                    , is.flybase.gn = F) {
-  ra<-loom[["row_attrs"]]
-  if(is.flybase.gn) {
-    return (ra[["FBgn"]])
-  }
-  return (ra[[RA_GENE_NAME]][])
 }
 
 #'@title add_fbgn
@@ -1049,6 +1033,9 @@ build_loom<-function(file.name
     if(class(dgem) == "dgTMatrix") {
       print("Converting to dgCMatrix...")
       dgem<-methods::as(object = dgem, Class = "dgCMatrix")
+    } else if(class(dgem) == "dgTMatrix") {
+      print("Converting to Matrix...")
+      dgem<-as.matrix(x = dgem)
     }
     print("Adding matrix...")
     add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
@@ -1056,6 +1043,11 @@ build_loom<-function(file.name
     print("Adding column attributes...")
     loom$create_group("col_attrs")
     add_col_attr(loom = loom, key = CA_CELLID, value = as.character(cn))
+    print("Adding default metrics nUMI, nGene...")
+    nUMI<-colSums(dgem)
+    add_col_attr(loom = loom, key = "nUMI", value = nUMI)
+    nGene<-colSums(dgem > 0)
+    add_col_attr(loom = loom, key = "nGene", value = nGene)
     print("Adding default embedding...")
     # Add the default embedding
     add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
@@ -1098,7 +1090,8 @@ lookup_loom<-function(loom) {
 
 #'@title open_loom
 #'@description Open loom file and return a .loom file handler.
-#'@param file.path The file path to the .loom file.
+#'@param  file.path The file path to the .loom file.
+#'@return A loom file handler
 #'@export
 open_loom<-function(file.path) {
   return (H5File$new(file.path, mode="r+"))
@@ -1198,3 +1191,62 @@ get_dspace<-function(x) {
   }
   return (H5S$new(type = x, dims = NULL, maxdims = NULL))
 }
+
+#*******************#
+#*******************#
+#  DATA EXTRACTION  #
+#*******************#
+#*******************#
+
+#'@title get_cell_ids
+#'@description Get the cell names
+#'@param loom           The loom file handler.
+#'@export
+get_cell_ids<-function(loom
+                       , is.flybase.gn = F) {
+  ra<-loom[["col_attrs"]]
+  return (ra[[CA_CELLID]][])
+}
+
+#'@title get_genes
+#'@description Get the gene names either symbols or Flybase gene identifiers.
+#'@param loom           The loom file handler.
+#'@param is.flybase.gn  Whether to retrieve the Flybase gene identifiers or not.
+#'@export
+get_genes<-function(loom
+                    , is.flybase.gn = F) {
+  ra<-loom[["row_attrs"]]
+  if(is.flybase.gn) {
+    return (ra[["FBgn"]])
+  }
+  return (ra[[RA_GENE_NAME]][])
+}
+  
+#'@title get_dgem
+#'@description Get the expression matrix for the given .loom.
+#'@param loom The loom file handler.
+#'@return The gene expression matrix (genes as rows, cells as columns).
+get_dgem<-function(loom) {
+  dgem<-t(loom[["matrix"]][,])
+  cell.ids<-get_cell_ids(loom = loom)
+  # Set the Cell IDs
+  colnames(dgem)<-cell.ids
+  genes<-get_genes(loom = loom)
+  row.names(dgem)<-genes
+  return (dgem)
+}
+
+#'@title get_default_embedding
+#'@description Get the default embedding for the given .loom.
+#'@param loom The loom file handler.
+#'@return The default embedding.
+get_default_embedding<-function(loom) {
+  return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]])
+}
+
+
+
+
+
+
+
