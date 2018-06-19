@@ -9,6 +9,9 @@ open_loom(file.path)
 \arguments{
 \item{file.path}{The file path to the .loom file.}
 }
+\value{
+A loom file handler
+}
 \description{
 Open loom file and return a .loom file handler.
 }
