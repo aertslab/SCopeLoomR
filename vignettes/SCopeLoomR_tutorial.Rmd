@@ -31,7 +31,6 @@ library(SingleCellExperiment)
 For example:
 ```{r install, eval=FALSE}
 devtools::install_github("aertlab/SCopeLoomR")
-# or install.packages("./SCopeLoomR_0.0.8.120", source=TRUE, repos=NULL)
 ```
 
 # Creating a loom object
@@ -76,14 +75,27 @@ loom <- build_loom(file.name=file.name,
                    genome="Mouse", # Just for user information, not used internally
                    default.embedding=default.tsne,
                    default.embedding.name=default.tne.name)
-
-### Add hierarchy (usefull to group .loom files in SCope)
-add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "Mouse", level.2.name = "Toy Datasets", level.3.name = ""))
-
-# Add annotation
-add_col_attr(loom=loom, key = "Cell type", value=cell.info$cellType, as.md.annotation=T) # as.md.annotation: to plot on tSNE
-add_col_attr(loom=loom, key = "nGene", value=cell.info$nGene)
 ```
+
+## Add hierarchy
+
+You can organize/group your .loom files in SCope by specifiying differents grouping levels. The current .loom file will be put in `Mouse -> Toy Datasets` branch of the SCope loom tree. 
+
+```{r}
+add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "Mouse", level.2.name = "Toy Datasets", level.3.name = ""))
+```
+
+## Add annotations/metrics
+
+You can add different annotations and/or metrics that you will be able to query in SCope.
+
+```{r}
+# Add annotation
+add_col_attr(loom=loom, key = "Cell type", value=cell.info$cellType, as.annotation=T)
+# Add metric
+add_col_attr(loom=loom, key = "nGene", value=cell.info$nGene, as.metric = T)
+```
+
 
 ## Add SCENIC results (Optional)
 
