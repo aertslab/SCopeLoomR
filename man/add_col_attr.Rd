@@ -4,7 +4,8 @@
 \alias{add_col_attr}
 \title{add_col_attr}
 \usage{
-add_col_attr(loom, key, value, dtype = NULL, as.md.annotation = F)
+add_col_attr(loom, key, value, dtype = NULL, as.annotation = F,
+  as.metric = F)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -13,7 +14,9 @@ add_col_attr(loom, key, value, dtype = NULL, as.md.annotation = F)
 
 \item{value}{The value of the new added attribute.}
 
-\item{as.md.annotation}{Whether to show this attribute in the compare datasets tab.}
+\item{as.annotation}{Define this attribute as a discrete attribute. This attribute will be visible in the compare tab.}
+
+\item{as.metric}{Define this attribute as a continues}
 }
 \description{
 Add a new column attribute to the given .loom object accessible by the given key and containing the given value.

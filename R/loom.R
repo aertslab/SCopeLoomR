@@ -23,6 +23,7 @@ RA_GENE_NAME<-"Gene"
 # Global attributes
 GA_METADATA_NAME<-"MetaData"
 GA_METADATA_ANNOTATIONS_NAME<-"annotations"
+GA_METADATA_METRICS_NAME<-"metrics"
 GA_METADATA_CLUSTERINGS_NAME<-"clusterings"
 GA_METADATA_EMBEDDINGS_NAME<-"embeddings"
 GA_METADATA_CLUSTERINGS_CLUSTER_MARKER_METRICS_NAME<-"clusterMarkerMetrics"
@@ -78,8 +79,23 @@ add_hierarchy<-function(loom, hierarchy) {
 # Global Meta data functions #
 ##############################
 
+#'@title add_global_md_metric
+#'@description  Add the metric with the given name to the global MetaData attribute.
+#'@param loom   The loom file handler.
+#'@param name   The name of the annotation.
+#'@param values The values of the annotation to be added.
+add_global_md_metric<-function(loom
+                             , name) {
+  gmd<-get_global_meta_data(loom = loom)
+  a<-gmd[[GA_METADATA_METRICS_NAME]]
+  a[[length(a)+1]]<-list(name = name)
+  gmd[[GA_METADATA_METRICS_NAME]]<-NULL
+  gmd[[GA_METADATA_METRICS_NAME]]<-a
+  update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
+}
+
 #'@title add_global_md_annotation
-#'@description  Add the embedding with the given name to the global MetaData attribute.
+#'@description  Add the annotation with the given name to the global MetaData attribute.
 #'@param loom   The loom file handler.
 #'@param name   The name of the annotation.
 #'@param values The values of the annotation to be added.
@@ -282,6 +298,7 @@ update_global_meta_data<-function(loom
 #'@param loom           The loom file handler.
 init_global_meta_data<-function(loom) {
   meta.data<-list(annotations = list()
+                , metrics = list()
                 , embeddings = list()
                 , clusterings = list()
                 , regulonThresholds = list())
@@ -903,16 +920,26 @@ update_col_attr<-function(loom
 
 #'@title add_col_attr
 #'@description Add a new column attribute to the given .loom object accessible by the given key and containing the given value.
-#'@param loom   The loom file handler.
-#'@param key    The name of the new added attribute.
-#'@param value  The value of the new added attribute.
-#'@param as.md.annotation Whether to show this attribute in the compare datasets tab.
+#'@param loom          The loom file handler.
+#'@param key           The name of the new added attribute.
+#'@param value         The value of the new added attribute.
+#'@param as.annotation Define this attribute as a discrete attribute. This attribute will be visible in the compare tab.
+#'@param as.metric     Define this attribute as a continues
 #'@export
 add_col_attr<-function(loom
                        , key
                        , value
                        , dtype = NULL
-                       , as.md.annotation = F) {
+                       , as.annotation = F
+                       , as.metric = F) {
+  if(as.annotation & as.metric) {
+    stop("Cannot add column attribute that is both of type metric and annotation.")
+  }
+  
+  if(as.annotation & length(unique(value)) > 245) {
+    stop("Cannot add column attribute as an annotation with more than 245 unique values.")
+  }
+  
   if(is.null(dtype)) {
     dtype<-guess_dtype(x = value)
   }
@@ -920,8 +947,12 @@ add_col_attr<-function(loom
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
   loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
   flush(loom = loom)
-  if(as.md.annotation) {
+  if(as.annotation) {
     add_global_md_annotation(loom = loom, name = key, values = value)
+    flush(loom = loom)
+  }
+  if(as.metric) {
+    add_global_md_metric(loom = loom, name = key)
     flush(loom = loom)
   }
 }
@@ -980,7 +1011,8 @@ finalize<-function(loom) {
 }
 
 #'@title build_loom
-#'@description build_loom
+#'
+#'@description Write the data given as arguments to the given file.name .loom file.
 #'@param file.name                  A string naming the .loom file to be generated.
 #'@param title                      A short description of content of loom.
 #'@param genome                     The genome used for the mapping.
@@ -1045,9 +1077,9 @@ build_loom<-function(file.name
     add_col_attr(loom = loom, key = CA_CELLID, value = as.character(cn))
     print("Adding default metrics nUMI, nGene...")
     nUMI<-colSums(dgem)
-    add_col_attr(loom = loom, key = "nUMI", value = nUMI)
+    add_col_attr(loom = loom, key = "nUMI", value = nUMI, as.metric = T)
     nGene<-colSums(dgem > 0)
-    add_col_attr(loom = loom, key = "nGene", value = nGene)
+    add_col_attr(loom = loom, key = "nGene", value = nGene, as.metric = T)
     print("Adding default embedding...")
     # Add the default embedding
     add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
