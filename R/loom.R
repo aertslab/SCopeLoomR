@@ -126,16 +126,21 @@ init_global_md_embeddings<-function(loom) {
 #'@param loom       The loom file handler.
 #'@param name       The name of the embedding to add.
 #'@param is.default Is the given embedding the default embedding to use in the .loom file.
+#'@param trajectory  A data.frame storing the X (first column) and Y (second column) coordinates of the trajectory.
 add_global_md_embedding<-function(loom
                                 , id
                                 , name
-                                , is.default = F) {
+                                , is.default = F
+                                , trajectory = NULL) {
   gmd<-get_global_meta_data(loom = loom)
   e<-gmd[[GA_METADATA_EMBEDDINGS_NAME]]
-  
-  e[[length(e)+1]]<-list(id = as.character(id)
-                         , name = name
+  idx<-length(e)+1
+  e[[idx]]<-list(id = as.character(id)
+               , name = name
   )
+  if(!is.null(trajectory)) {
+    e[[idx]][["trajectory"]]<-trajectory
+  }
   gmd[[GA_METADATA_EMBEDDINGS_NAME]]<-NULL
   gmd[[GA_METADATA_EMBEDDINGS_NAME]]<-e
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
@@ -326,16 +331,19 @@ add_default_embedding<-function(loom, embedding) {
 }
 
 #'@title add_embedding
-#'@description Add the given embedding as a row attribute and meta data related to the given embeddding to the given .loom file handler.
+#'@description Add the given embedding as a column attribute and meta data related to the given embeddding to the given .loom file handler.
 #'@param loom       The loom file handler.
-#'@param embedding  A M-by-2 data.frame of the embeddings with M cells.
+#'@param embedding  A M-by-2 data.frame of the embeddings with M cells. 
+#'                  If the given trajectory is not NULL, it should correspond to the projection of the cells onto the given trajectory.
 #'@param name       The name of the given embedding.
 #'@param is.default Default embedding to use in the .loom file.
+#'@param trajectory A named list with the node names, the edges, and the x and y coordinates of the nodes of trajectory. Use the function create_trajectory().
 #'@export
 add_embedding<-function(loom
                         , embedding
                         , name
-                        , is.default = F) {
+                        , is.default = F
+                        , trajectory = NULL) {
   # Add the default embedding also to Embeddings_X and Embeddings_Y
   if(is.default) {
     add_default_embedding(loom = loom, embedding = embedding)
@@ -368,8 +376,46 @@ add_embedding<-function(loom
   add_global_md_embedding(loom = loom
                           , id = id
                           , name = name
-                          , is.default = is.default)
+                          , is.default = is.default
+                          , trajectory = trajectory)
   flush(loom = loom)
+}
+
+##########################
+# Trajectories functions #
+##########################
+
+#'@title create_trajectory_from_monocle
+#'@description Create a trajectory object from CellDataSet monocle output.
+#'@param cds CellDataSet object from monocle.
+#'@export
+create_trajectory_from_monocle<-function(cds) {
+  edges<-as.data.frame(igraph::get.edgelist(cds@minSpanningTree))
+  coordinates<-data.frame("x"=t(reducedDimK(cds))[,1],"y"=t(reducedDimK(cds))[,2])
+  return (create_trajectory(edges = edges, coordinates = coordinates))
+}
+
+#'@title create_trajectory
+#'@description Create a trajectory object from the given edges and coordinates of the nodes.
+#'@param cds CellDataSet object from monocle.
+#'@export
+create_trajectory<-function(edges, coordinates) {
+  if(!is.data.frame(x = edges))
+    stop("The given edges should be a data.frame.")
+  if(!is.data.frame(x = coordinates))
+    stop("The given coordinates should be a data.frame.")
+  if(all(as.character(seq(1,nrow(coordinates))) == row.names(x = coordinates)) | is.null(row.names(coordinates)))
+    stop("The row.names of the given coordinates should have the node names.")
+  colnames(edges)<-c("source","target")
+  row.names(edges)<-NULL
+  edges.list<-apply(edges, 1, as.list)
+  nodes<-row.names(coordinates)
+  colnames(coordinates)<-c("x","y")
+  row.names(coordinates)<-NULL
+  coord.list<-apply(coordinates, 1, as.list)
+  return (list("nodes"=nodes
+               , "edges"=edges.list
+               , "coordinates"=coord.list))
 }
 
 #########################
