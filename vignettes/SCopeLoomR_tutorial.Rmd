@@ -2,10 +2,10 @@
 title: "SCopeLoomR tutorial"
 package: r pkg_ver('SCopeLoomR')
 output:
+  html_notebook:
+    toc: yes
   html_document:
     df_print: paged
-    toc: yes
-  html_notebook:
     toc: yes
   BiocStyle::html_document:
     number_sections: no
@@ -25,17 +25,19 @@ library(SingleCellExperiment)
 
 # Introduction
 
-- TO DO
+The .loom format is a file format designed to store very large omics datasets. It has been created is maintained by the [Linnarsson lab](http://linnarssonlab.org/). `SCopeLoomR` is an R package that helps you to create easily .loom files that follow the data [naming conventions](http://linnarssonlab.org/loompy/conventions/index.html) from loompy. 
+
+`SCopeLoomR` was created along the development of SCope to help to store different data inside the .loom e.g.: regulon, regulon activities from SCENIC;  . Therefore, it 
 
 # Installation
 For example:
 ```{r install, eval=FALSE}
-devtools::install_github("aertlab/SCopeLoomR")
+devtools::install_github("aertslab/SCopeLoomR")
 ```
 
 # Creating a loom object
 
-## Load minimal information
+## Load Data
 
 (minimum information required to create the object)
 

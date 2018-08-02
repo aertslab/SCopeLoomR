@@ -4,17 +4,20 @@
 \alias{add_embedding}
 \title{add_embedding}
 \usage{
-add_embedding(loom, embedding, name, is.default = F)
+add_embedding(loom, embedding, name, is.default = F, trajectory = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
 
-\item{embedding}{A M-by-2 data.frame of the embeddings with M cells.}
+\item{embedding}{A M-by-2 data.frame of the embeddings with M cells. 
+If the given trajectory is not NULL, it should correspond to the projection of the cells onto the given trajectory.}
 
 \item{name}{The name of the given embedding.}
 
 \item{is.default}{Default embedding to use in the .loom file.}
+
+\item{trajectory}{A named list with the node names, the edges, and the x and y coordinates of the nodes of trajectory. Use the function create_trajectory().}
 }
 \description{
-Add the given embedding as a row attribute and meta data related to the given embeddding to the given .loom file handler.
+Add the given embedding as a column attribute and meta data related to the given embeddding to the given .loom file handler.
 }

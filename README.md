@@ -19,12 +19,10 @@ You can find a tutorial on how to create .loom files [here](https://github.com/a
 July 6, 2018
 
 * Version 0.2.0
-    * Changes:
-        * Add feature to store trajectory data. Currently, the following softwares can have their trajectory data easily stored in .loom files: `monocle`.
+    * Add feature to store trajectory data. Currently, the following softwares can have their trajectory data easily stored in .loom files: `monocle`.
 
 July 4, 2018
 
 * Version 0.1.0
-    * Changes:
-        * Add feature to store metrics
+    * Add feature to store metrics
         

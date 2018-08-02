@@ -4,7 +4,7 @@
 \alias{add_global_md_embedding}
 \title{add_global_md_embedding}
 \usage{
-add_global_md_embedding(loom, id, name, is.default = F)
+add_global_md_embedding(loom, id, name, is.default = F, trajectory = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -12,6 +12,8 @@ add_global_md_embedding(loom, id, name, is.default = F)
 \item{name}{The name of the embedding to add.}
 
 \item{is.default}{Is the given embedding the default embedding to use in the .loom file.}
+
+\item{trajectory}{A data.frame storing the X (first column) and Y (second column) coordinates of the trajectory.}
 }
 \description{
 Add the embedding with the given name to the global MetaData attribute.

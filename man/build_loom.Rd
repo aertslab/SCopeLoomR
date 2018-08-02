@@ -31,5 +31,5 @@ build_loom(file.name, title = NULL, genome = NULL, dgem, default.embedding,
 \item{display.progress}{Display progress when adding the gene expression matrix.}
 }
 \description{
-build_loom
+Write the data given as arguments to the given file.name .loom file.
 }
