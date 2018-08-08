@@ -456,6 +456,13 @@ add_seurat_clustering<-function(loom
     }
   }
   
+  # Check that all cells present in loom digital expression matrix are present in the given seurat@data and seurat@scale.data objects
+  genes<-get_genes(loom = loom)
+  n.genes<-length(genes)
+  if(sum(genes %in% colnames(seurat@data)) != n.genes | sum(genes %in% colnames(seurat@scale.data)) != n.genes) {
+    stop("Some cells are missing. Please check that all cells from the digital expression matrix (dgem) in the given loom are present in the seurat@data and seurat@scale.data slots.")
+  }
+  
   clustering.resolutions<-get_seurat_clustering_resolutions(seurat)
   if(length(clustering.resolutions) > 0) {
     for(res in clustering.resolutions) {
@@ -994,7 +1001,7 @@ add_col_attr<-function(loom
   loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
   flush(loom = loom)
   if(as.annotation) {
-    add_global_md_annotation(loom = loom, name = key, values = value)
+    add_global_md_annotation(loom = loom, name = key, values = as.character(value))
     flush(loom = loom)
   }
   if(as.metric) {
