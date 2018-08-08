@@ -459,7 +459,7 @@ add_seurat_clustering<-function(loom
   # Check that all cells present in loom digital expression matrix are present in the given seurat@data and seurat@scale.data objects
   genes<-get_genes(loom = loom)
   n.genes<-length(genes)
-  if(sum(genes %in% colnames(seurat@data)) != n.genes | sum(genes %in% colnames(seurat@scale.data)) != n.genes) {
+  if(sum(genes %in% row.names(seurat@data)) != n.genes | sum(genes %in% row.names(seurat@scale.data)) != n.genes) {
     stop("Some cells are missing. Please check that all cells from the digital expression matrix (dgem) in the given loom are present in the seurat@data and seurat@scale.data slots.")
   }
   
