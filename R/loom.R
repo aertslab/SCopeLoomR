@@ -70,15 +70,14 @@ create_hierarchy<-function(level.1.name = NULL
 #'@param hierarchy  A named list of the 3-levels names. Use create_hierarchy() to build it.
 #'@export
 add_hierarchy<-function(loom, hierarchy, overwrite = FALSE) {
-  if(hierarchy_exists(loom = loom) & !overwrite) {
+  he<-hierarchy_exists(loom = loom)
+  if(he & !overwrite) {
     stop("Hierarchy already exists for the given loom. You can overwrite the hierarchy in the given loom by the given hierarchy by setting overwrite option to TRUE.")
   }
   for(idx in seq_along(hierarchy)) {
-    if(!overwrite) {
-      print("Adding hierarchy")
+    if(!he | !overwrite) {
       add_global_attr(loom = loom, key = names(hierarchy)[idx], value = hierarchy[[idx]])
     } else {
-      print("Overwriting the current hierarchy")
       update_global_attr(loom = loom, key = names(hierarchy)[idx], value = hierarchy[[idx]])
     }
   }
