@@ -1128,9 +1128,14 @@ build_loom<-function(file.name
     print("Adding column attributes...")
     loom$create_group("col_attrs")
     add_col_attr(loom = loom, key = CA_CELLID, value = as.character(cn))
-    print("Adding default metrics nUMI, nGene...")
-    nUMI<-colSums(dgem)
-    add_col_attr(loom = loom, key = "nUMI", value = nUMI, as.metric = T)
+    # Check if matrix is raw counts
+    if(sum(dgem%%1!=0) == 0) {
+      print("Adding default metrics nUMI...")
+      nUMI<-colSums(dgem)
+      add_col_attr(loom = loom, key = "nUMI", value = nUMI, as.metric = T)
+    } else {
+      warning("Default metric nUMI was not added because the input matrix does not seem to be the raw counts.")
+    }
     nGene<-colSums(dgem > 0)
     add_col_attr(loom = loom, key = "nGene", value = nGene, as.metric = T)
     print("Adding default embedding...")
