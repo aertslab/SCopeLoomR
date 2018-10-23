@@ -70,7 +70,7 @@ create_hierarchy<-function(level.1.name = NULL
 #'@param hierarchy  A named list of the 3-levels names. Use create_hierarchy() to build it.
 #'@export
 add_hierarchy<-function(loom, hierarchy, overwrite = FALSE) {
-  if(hierarchy_exists & !overwrite) {
+  if(hierarchy_exists(loom = loom) & !overwrite) {
     stop("Hierarchy already exists for the given loom. You can overwrite the hierarchy in the given loom by the given hierarchy by setting overwrite option to TRUE.")
   }
   for(idx in seq_along(hierarchy)) {
@@ -88,7 +88,7 @@ add_hierarchy<-function(loom, hierarchy, overwrite = FALSE) {
 #'@description      Check if hierarchy exists for the given loom.
 #'@param loom       The loom file handler.
 #'@export
-hierarchy_exists<-function() {
+hierarchy_exists<-function(loom) {
   return (loom$attr_exists(attr_name = "SCopeTreeL1") | loom$attr_exists(attr_name = "SCopeTreeL2") | loom$attr_exists(attr_name = "SCopeTreeL3"))
 }
 
