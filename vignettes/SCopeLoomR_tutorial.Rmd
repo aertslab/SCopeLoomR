@@ -1,10 +1,11 @@
 ---
-title: "SCopeLoomR tutorial"
+title: "SCopeLoomR Tutorial - Create a .loom file and extract data from a .loom"
 package: r pkg_ver('SCopeLoomR')
 output:
   html_notebook:
     toc: yes
   html_document:
+    keep_md: true
     df_print: paged
     toc: yes
   BiocStyle::html_document:
@@ -198,6 +199,24 @@ add_embedding(loom = loom, embedding = monocle.embedding, name = "Monocle (DDRTr
 ## Finalize (save)
 ```{r finalize}
 finalize(loom=loom)
+```
+
+# Extract data from a loom object
+
+The .loom file related to this part of the tutorial can be downloaded at http://scope.aertslab.org in the left panel under `Drosophila` > `Brain`.
+
+## Get the gene expression matrix
+
+```{r}
+loom<-open_loom(loom = "Aerts_Fly_AdultBrain_Filtered_57k.loom")
+dgem<-get_dgem(loom = loom)
+```
+
+## Get the gene expression matrix of a given cluster
+
+```{r}
+loom<-open_loom(loom = "Aerts_Fly_AdultBrain_Filtered_57k.loom")
+cluster.10.dgem<-get_cluster_dgem_by_name(loom = loom, cluster.name = "MBON - Cluster 57")
 ```
 
 
