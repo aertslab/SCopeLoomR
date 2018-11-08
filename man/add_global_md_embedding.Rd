@@ -4,7 +4,8 @@
 \alias{add_global_md_embedding}
 \title{add_global_md_embedding}
 \usage{
-add_global_md_embedding(loom, id, name, is.default = F, trajectory = NULL)
+add_global_md_embedding(loom, id, name, is.default = F,
+  trajectory = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}

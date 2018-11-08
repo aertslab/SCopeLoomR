@@ -1417,6 +1417,7 @@ get_genes<-function(loom
 #'@description Get the expression matrix for the given .loom.
 #'@param loom The loom file handler.
 #'@return The gene expression matrix (genes as rows, cells as columns).
+#'@export
 get_dgem<-function(loom) {
   dgem<-t(loom[["matrix"]][,])
   cell.ids<-get_cell_ids(loom = loom)
@@ -1431,6 +1432,7 @@ get_dgem<-function(loom) {
 #'@description Get the default embedding for the given .loom.
 #'@param loom The loom file handler.
 #'@return The default embedding.
+#'@export
 get_default_embedding<-function(loom) {
   return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]])
 }

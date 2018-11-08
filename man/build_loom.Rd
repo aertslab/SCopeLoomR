@@ -4,8 +4,8 @@
 \alias{build_loom}
 \title{build_loom}
 \usage{
-build_loom(file.name, title = NULL, genome = NULL, dgem, default.embedding,
-  default.embedding.name, hierarchy = NULL,
+build_loom(file.name, title = NULL, genome = NULL, dgem,
+  default.embedding, default.embedding.name, hierarchy = NULL,
   fbgn.gn.mapping.file.path = NULL, chunk.size = 1000,
   display.progress = T)
 }

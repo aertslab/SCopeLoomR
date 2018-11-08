@@ -4,7 +4,7 @@
 \alias{add_hierarchy}
 \title{add_hierarchy}
 \usage{
-add_hierarchy(loom, hierarchy)
+add_hierarchy(loom, hierarchy, overwrite = FALSE)
 }
 \arguments{
 \item{loom}{The loom file handler.}
