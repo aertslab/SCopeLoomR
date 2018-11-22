@@ -99,7 +99,6 @@ add_col_attr(loom=loom, key = "Cell type", value=cell.info$cellType, as.annotati
 add_col_attr(loom=loom, key = "nGene", value=cell.info$nGene, as.metric = T)
 ```
 
-
 ## Add SCENIC results (Optional)
 
 *(Not run in this example)*
@@ -117,7 +116,6 @@ add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulons.AUC))
 load(paste0(scenic.dir, "int/3.0_regulons_forAUCell.RData"), verbose=TRUE)
 regulon.enrichment.table<-read.table(file = "output/Step2_MotifEnrichment.tsv", header = T, sep = "\t", quote = '', stringsAsFactors = F)
 add_scenic_regulons(loom=loom
-                    , dgem=dgem
                     , regulons=regulons
                     , regulon.threshold.assignments=...$threshold.assignment # Optional
                     , regulon.enrichment.table = regulon.enrichment.table # Optional) 
@@ -216,7 +214,7 @@ dgem<-get_dgem(loom = loom)
 
 ```{r}
 loom<-open_loom(loom = "Aerts_Fly_AdultBrain_Filtered_57k.loom")
-cluster.10.dgem<-get_cluster_dgem_by_name(loom = loom, cluster.name = "MBON - Cluster 57")
+cluster.10.dgem<-get_cluster_dgem_by_name(loom = loom, cluster.name = "Astrocyte-like - Cluster 10")
 ```
 
 

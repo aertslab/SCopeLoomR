@@ -2,6 +2,19 @@
 An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to extract
 data from .loom files.
 
+## Requirements
+- HDF5 >= 1.10.1
+
+Version 1.10.1 can be installed with this snippet:
+```
+wget https://support.hdfgroup.org/ftp/HDF5/current/src/hdf5-1.10.1.tar
+cd hdf5-1.10.1
+./configure
+make -j4
+make check
+make install
+```
+
 ## Installation
 
 Installation should take less than one minute.
