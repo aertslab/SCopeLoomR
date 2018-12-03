@@ -5,15 +5,19 @@ data from .loom files.
 ## Requirements
 - HDF5 >= 1.10.1
 
-Version 1.10.1 can be installed with this snippet:
+For **Linux** and **MacOS** machines, version 1.10.1 can be installed with this snippet:
 ```
-wget https://support.hdfgroup.org/ftp/HDF5/current/src/hdf5-1.10.1.tar
+curl -O https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.1/src/hdf5-1.10.1.tar
 cd hdf5-1.10.1
 ./configure
 make -j4
 make check
 make install
 ```
+To install HDF5 on a **Windows** machine, please use the prebuilt binaries available at https://www.hdfgroup.org/downloads/hdf5/.
+
+
+For other HDF5 releases, please visit https://support.hdfgroup.org/ftp/HDF5/releases/.
 
 ## Installation
 
