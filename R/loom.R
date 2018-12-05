@@ -1162,6 +1162,7 @@ build_loom<-function(file.name
                      , fbgn.gn.mapping.file.path = NULL
                      , chunk.size = 1000
                      , display.progress = T) {
+  is.dgem.sparse<-F
   loom<-H5File$new(filename = file.name, mode = "w")
   tryCatch({
     print("Adding global attributes...")
@@ -1193,9 +1194,10 @@ build_loom<-function(file.name
     if(class(dgem) == "dgTMatrix") {
       print("Converting to dgCMatrix...")
       dgem<-methods::as(object = dgem, Class = "dgCMatrix")
-    } else if(class(dgem) == "dgTMatrix") {
-      print("Converting to Matrix...")
-      dgem<-as.matrix(x = dgem)
+    }
+    # Check if sparse matrix
+    if(sum(class(x = dgem) %in% c("dgCMatrix","dgTMatrix")) > 0) {
+      is.dgem.sparse<-T
     }
     print("Adding matrix...")
     add_matrix(loom = loom, dgem = dgem, chunk.size = chunk.size, display.progress = display.progress)
@@ -1206,13 +1208,21 @@ build_loom<-function(file.name
     # Check if matrix is raw counts
     if(sum(dgem%%1!=0) == 0) {
       print("Adding default metrics nUMI...")
-      nUMI<-colSums(dgem)
+      if(is.dgem.sparse) {
+        nUMI<-Matrix::colSums(dgem)
+      } else {
+        nUMI<-colSums(dgem)
+      }
       add_col_attr(loom = loom, key = "nUMI", value = nUMI, as.metric = T)
     } else {
       warning("Default metric nUMI was not added because the input matrix does not seem to be the raw counts.")
     }
     print("Adding default metrics nGene...")
-    nGene<-colSums(dgem > 0)
+    if(is.dgem.sparse) {
+      nGene<-Matrix::colSums(dgem > 0)
+    } else {
+      nGene<-colSums(dgem > 0)
+    }
     add_col_attr(loom = loom, key = "nGene", value = nGene, as.metric = T)
     print("Adding default embedding...")
     # Add the default embedding
