@@ -34,6 +34,12 @@ You can find a tutorial on how to create .loom files and extract data from them 
 
 ## Version History
 
+January 10, 2019
+
+* Version 0.3.2
+    * Fix bugs related to MetaData global attribute (absent or not compressed).
+    * Add feature to overwrite default clustering if already existing one in the .loom.
+
 November 8, 2018
 
 * Version 0.3.1

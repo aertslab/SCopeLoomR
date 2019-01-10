@@ -8,7 +8,8 @@ add_seurat_clustering(loom, seurat, seurat.markers.file.path.list = NULL,
   seurat.marker.metric.accessors = NULL,
   seurat.marker.metric.names = NULL,
   seurat.marker.metric.description = NULL,
-  default.clustering.resolution = NULL, annotation = NULL,
+  default.clustering.resolution = NULL,
+  default.clustering.overwrite = NULL, annotation = NULL,
   annotation.cluster.id.cn = NULL,
   annotation.cluster.description.cn = NULL)
 }

@@ -4,7 +4,8 @@
 \alias{add_clustering}
 \title{add_clustering}
 \usage{
-add_clustering(loom, group, name, clusters, is.default = F)
+add_clustering(loom, group, name, clusters, is.default = F,
+  overwrite.default = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -16,6 +17,8 @@ add_clustering(loom, group, name, clusters, is.default = F)
 \item{clusters}{A named list of the cell id and assigned the cluster id.}
 
 \item{is.default}{Set this clustering be set as default one.}
+
+\item{overwrite.default}{Overwrite the default clustering in the given loom if set to TRUE. Otherwise, it's not updated.}
 }
 \description{
 Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.

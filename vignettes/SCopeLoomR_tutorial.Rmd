@@ -80,13 +80,21 @@ loom <- build_loom(file.name=file.name,
                    default.embedding.name=default.tne.name)
 ```
 
-## Add hierarchy
+## Add/update hierarchy
 
 You can organize/group your .loom files in SCope by specifiying differents grouping levels. The current .loom file will be put in `Mouse -> Toy Datasets` branch of the SCope loom tree. 
 
 ```{r}
 add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "Mouse", level.2.name = "Toy Datasets", level.3.name = ""))
 ```
+
+To update hierarchy of a .loom file,
+
+```{r}
+loom <- open_loom(file.path = "[path-to-loom]")
+add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "[level-1-name]", level.2.name = "[level-2-name]", level.3.name = "[level-3-name]"), overwrite = T)
+```
+
 
 ## Add annotations/metrics
 

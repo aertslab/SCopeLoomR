@@ -32,6 +32,9 @@ GA_TITLE_GENOME<-"Genome"
 GA_CREATION_DATE_NAME<-"CreationDate"
 GA_R_VERSION_NAME<-"RVersion"
 
+# Miscellaneous
+BASE64_PATTERN<-"^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$"
+
 #*******************#
 #*******************#
 #  DATA INSERTION   #
@@ -84,8 +87,8 @@ add_hierarchy<-function(loom, hierarchy, overwrite = FALSE) {
 }
 
 #'@title hierarchy_exists
-#'@description      Check if hierarchy exists for the given loom.
-#'@param loom       The loom file handler.
+#'@description  Check if hierarchy exists for the given loom.
+#'@param loom   The loom file handler.
 #'@export
 hierarchy_exists<-function(loom) {
   return (loom$attr_exists(attr_name = "SCopeTreeL1") | loom$attr_exists(attr_name = "SCopeTreeL2") | loom$attr_exists(attr_name = "SCopeTreeL3"))
@@ -295,12 +298,35 @@ add_global_md_regulon_thresholds<-function(loom
   flush(loom = loom)
 }
 
+#'@title check_global_meta_data
+#'@description  Perform some sanity checks on the MetaData global attribute
+#'@param loom   The loom file handler.
+check_global_meta_data<-function(loom) {
+  if(!global_meta_data_exists(loom = loom)) {
+    stop("The MetaData global attribute does not exist in the given .loom. To be able to run this function please first initialize the MetaData global attribute by running init_global_meta_data(loom = loom).")
+  }
+}
+
+#'@title global_meta_data_exists
+#'@description  Check if global MetaData attribute exists for the given loom.
+#'@param loom   The loom file handler.
+global_meta_data_exists<-function(loom) {
+  return (loom$attr_exists(attr_name = GA_METADATA_NAME))
+}
+
 #'@title get_global_meta_data
 #'@description Get the global MetaData attribute as a R object.
 #'@param loom The loom file handler.
 #'@export
 get_global_meta_data<-function(loom) {
-  meta.data<-decompress_gzb64(gzb64c = h5attr(x = loom, which = GA_METADATA_NAME))
+  meta.data<-h5attr(x = loom, which = GA_METADATA_NAME)
+  if(!is_base64_encoded(value = meta.data)) {
+    if(!is_json(value = meta.data)) {
+      stop("The global MetaData attribute in the given loom is corrupted.")
+    }
+  } else {
+    meta.data<-decompress_gzb64(gzb64c = meta.data)
+  }
   return (rjson::fromJSON(json_str = meta.data))
 }
 
@@ -315,9 +341,28 @@ update_global_meta_data<-function(loom
 }
 
 #'@title init_global_meta_data
-#'@description Empty the global MetaData attribute.
-#'@param loom           The loom file handler.
+#'@description  Initialize the global MetaData attribute.
+#'@param loom   The loom file handler.
+#'@export
 init_global_meta_data<-function(loom) {
+  meta.data<-list(annotations = list()
+                  , metrics = list()
+                  , embeddings = list()
+                  , clusterings = list()
+                  , regulonThresholds = list())
+  meta.data.json<-rjson::toJSON(meta.data)
+  if(!(GA_METADATA_NAME %in% list.attributes(object = loom))) {
+    compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
+    add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
+  } else {
+    stop("The MetaData global attribute already exists.")
+  }
+}
+
+#'@title clear_global_meta_data
+#'@description  Empty the global MetaData attribute.
+#'@param loom   The loom file handler.
+clear_global_meta_data<-function(loom) {
   meta.data<-list(annotations = list()
                 , metrics = list()
                 , embeddings = list()
@@ -360,6 +405,8 @@ add_embedding<-function(loom
                         , name
                         , is.default = F
                         , trajectory = NULL) {
+  # Check MetaData global attribute
+  check_global_meta_data(loom = loom)
   
   if(is.null(row.names(embedding))) {
     stop("Please, make sure row.names are correctly filled in with cell IDs.")
@@ -484,9 +531,13 @@ add_seurat_clustering<-function(loom
                                 , seurat.marker.metric.names = NULL
                                 , seurat.marker.metric.description = NULL
                                 , default.clustering.resolution = NULL
+                                , default.clustering.overwrite = NULL
                                 , annotation = NULL
                                 , annotation.cluster.id.cn = NULL
                                 , annotation.cluster.description.cn = NULL) {
+  # Check MetaData global attribute
+  check_global_meta_data(loom = loom)
+  
   if(!is.null(seurat.markers.file.path.list)) {
     if(is.null(names(seurat.markers.file.path.list))) {
       stop("Argument 'seurat.markers.file.path.list' is not a named list. The names should correspond to the clustering ID in Seurat object (e.g.: res.2).")
@@ -536,7 +587,8 @@ add_seurat_clustering<-function(loom
                                    , name = paste("Seurat, resolution",res)
                                    , clusters = cluster.ids
                                    , annotation = cluster.annotation
-                                   , is.default = is.default.clustering)
+                                   , is.default = is.default.clustering
+                                   , overwrite.default = default.clustering.overwrite)
       print(paste0("Clustering ID: ", clid))
       flush(loom = loom)
       # Add the Seurat markers if not empty
@@ -572,7 +624,8 @@ add_seurat_clustering<-function(loom
                                    , name = "Seurat, resolution undefined"
                                    , clusters = seurat@ident
                                    , annotation = cluster.annotation
-                                   , is.default = T)
+                                   , is.default = T
+                                   , overwrite.default = default.clustering.overwrite)
   }
 }
 
@@ -626,24 +679,27 @@ create_cluster_annotation<-function(clusters
 
 #'@title add_clustering
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
-#'@param loom       The loom file handler.
-#'@param group      The for the given clustering group to which the given clusters have to be added.
-#'@param name       The name given to this clustering.
-#'@param clusters   A named list of the cell id and assigned the cluster id.
-#'@param is.default Set this clustering be set as default one.
+#'@param loom               The loom file handler.
+#'@param group              The for the given clustering group to which the given clusters have to be added.
+#'@param name               The name given to this clustering.
+#'@param clusters           A named list of the cell id and assigned the cluster id.
+#'@param is.default         Set this clustering be set as default one.
+#'@param overwrite.default  Overwrite the default clustering in the given loom if set to TRUE. Otherwise, it's not updated.
 #'@export
 add_clustering<-function(loom
                        , group
                        , name
                        , clusters
-                       , is.default = F) {
+                       , is.default = F
+                       , overwrite.default = NULL) {
   annotation<-create_cluster_annotation(clusters = clusters)
   add_annotated_clustering(loom = loom
                            , group = group
                            , name = name
                            , clusters = clusters
                            , annotation = annotation
-                           , is.default = is.default)
+                           , is.default = is.default
+                           , overwrite.default = overwrite.default)
 }
 
 #'@title add_annotated_clustering
@@ -654,13 +710,15 @@ add_clustering<-function(loom
 #'@param clusters             A named list of the cell id and assigned the cluster id.
 #'@param annotation           A named list of the cell id and the corresponding annotation.
 #'@param is.default           Set this clustering be set as default one.
+#'@param overwrite.default    Overwrite the default clustering in the given loom if set to TRUE. Otherwise, it's not updated.
 #'@export
 add_annotated_clustering<-function(loom
                                  , group
                                  , name
                                  , clusters
                                  , annotation
-                                 , is.default = F) {
+                                 , is.default = F
+                                 , overwrite.default = NULL) {
   id<-0
   if(length(unique(clusters)) == length(unique(annotation))) {
     # Make sure the order are the same
@@ -683,10 +741,18 @@ add_annotated_clustering<-function(loom
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
-    if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_ID) & col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME)) {
-      warning("A default clustering has already been set. The current default clustering will be overwritten.")
-      update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
-      update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+    if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_ID) | col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME)) {
+      if(is.null(x = overwrite.default)) {
+        stop("A default clustering has already been set. It can be overwritten by setting the corresponding *overwrite.default to TRUE or skipped by setting it to FALSE.")
+      } else {
+        if(overwrite.default) {
+          warning("A default clustering has already been set. The current default clustering will be overwritten.")
+          update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+          update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+        } else {
+          warning("A default clustering has already been set. It won't be overwritten.")
+        }
+      }
     } else {
       add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
       add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
@@ -1391,6 +1457,42 @@ get_dspace<-function(x) {
     stop(paste("Wrong dspace. Choose either scalar or simple."))
   }
   return (H5S$new(type = x, dims = NULL, maxdims = NULL))
+}
+
+#'@title is_base64_encoded
+#'@description Checks whether the given value is base64 encoded.
+#'@param value The value to check.
+#'@return T is base64 encoded otherwise F.
+is_base64_encoded<-function(value) {
+  return (grepl(pattern = BASE64_PATTERN, x = value, perl=TRUE))
+}
+
+#'@title is_gzipped
+#'@description Checks whether the given value is gzip compressed.
+#'@param value The value to check.
+#'@return T if gzip compressed otherwise F.
+is_gzipped<-function(value) {
+  tryCatch({
+    memDecompress(from = value, type = "gzip", asChar = F)
+    return (T)
+  }, error = function(e) {
+    return (F)
+  }, finally = {
+  })
+}
+
+#'@title is_json
+#'@description Checks whether the given value is a json character
+#'@param value The value to check.
+#'@return T if json string character otherwise F.
+is_json <-function(value) {
+  tryCatch({
+    rjson::fromJSON(json_str = value)
+    return (T)
+  }, error = function(e) {
+    return (F)
+  }, finally = {
+  })
 }
 
 #*******************#

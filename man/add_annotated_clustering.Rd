@@ -5,7 +5,7 @@
 \title{add_annotated_clustering}
 \usage{
 add_annotated_clustering(loom, group, name, clusters, annotation,
-  is.default = F)
+  is.default = F, overwrite.default = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -19,6 +19,8 @@ add_annotated_clustering(loom, group, name, clusters, annotation,
 \item{annotation}{A named list of the cell id and the corresponding annotation.}
 
 \item{is.default}{Set this clustering be set as default one.}
+
+\item{overwrite.default}{Overwrite the default clustering in the given loom if set to TRUE. Otherwise, it's not updated.}
 }
 \description{
 Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
