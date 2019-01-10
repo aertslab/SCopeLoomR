@@ -1,4 +1,4 @@
-# SCopeLoomR v0.3.1
+# SCopeLoomR v0.3.2
 An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to extract
 data from .loom files.
 
