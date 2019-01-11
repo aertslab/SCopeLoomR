@@ -747,8 +747,24 @@ add_annotated_clustering<-function(loom
       } else {
         if(overwrite.default) {
           warning("A default clustering has already been set. The current default clustering will be overwritten.")
-          update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
-          update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+          # Check for each if it exists. If it exists update otherwise create new.
+          if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_ID)) {
+            update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+          } else {
+            add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+          }
+          # Check if annotation is not null
+          if(!is.null(x = annotation)) {
+            if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME))
+              update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
+            else
+              add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.integer(as.character(x = annotation)))
+          } else {
+            # As we overwrite ClusterID and annotation is null, if ClusterName is already present, to be consistent we should delete it.
+            if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME)) {
+              remove_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME)
+            }
+          }
         } else {
           warning("A default clustering has already been set. It won't be overwritten.")
         }
