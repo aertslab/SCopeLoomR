@@ -1565,6 +1565,36 @@ get_default_embedding<-function(loom) {
   return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]])
 }
 
+#' @title get_embeddings
+#' @description Get embeddings (e.g. t-SNE, UMAP) from the given loom file
+#' @param loom .loom file name
+#' @return List with the embeddings (each of them as data.frame)
+#' @examples
+#' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+#' loom <- open_loom(loomPath)
+#' 
+#' embeddings <- get_embeddings(loom)
+#' names(embeddings)
+#' head(embeddings[[1]])
+#' @export
+get_embeddings <- function(loom){
+  embeddings <- list()
+  for(embedding in get_global_meta_data(loom)$embeddings)
+  {
+    if(embedding$id == -1){
+      tmp <- as.matrix(get_default_embedding(loom)[])
+      rownames(tmp) <- get_cell_ids(loom)
+      embeddings[[embedding$name]] <- tmp
+    }else{
+      tmp <- cbind(loom[["col_attrs"]][["Embeddings_X"]][][,as.character(embedding$id)],
+                   loom[["col_attrs"]][["Embeddings_Y"]][][,as.character(embedding$id)])
+      rownames(tmp) <- get_cell_ids(loom)
+      embeddings[[embedding$name]] <- tmp
+    }
+  }
+  return(embeddings)
+}
+
 #'@title get_clustering_idx_by_cluster_name
 #'@description Get index of the clutering related to the given cluster.name.
 #'@param loom The loom file handler.
@@ -1636,6 +1666,131 @@ get_clustering_by_id<-function(loom
   return (ca.clusterings[, colnames(ca.clusterings)%in%clustering.id])
 }
 
+#' @title get_clusterings_withName
+#' @description Get cell clusterings stored in the given loom file 
+#' @param loom .loom file name
+#' @return data.frame containing the clusterings in the given loom (cells as rows, clustering alternatives as columns).
+#' @examples
+#' # clusters <- get_clusterings_withName(loom)
+#' # head(clusters)
+#' @export
+get_clusterings_withName <- function(loom){
+  clusterings <- get_clusterings(loom)
+  rownames(clusterings) <- get_cell_ids(loom)
+  
+  for(i in seq_along(colnames(clusterings))){
+    clLevels <- sapply(get_global_meta_data(loom)$clusterings[[i]]$clusters, function(x) setNames(x$description, x$id))
+    clusterings[,i] <- factor(clusterings[,i], levels=names(clLevels), labels=clLevels)
+  }
+  return(clusterings)
+}
+
+#' @title get_cellAnnotation
+#' @description Get cell annotations from the given loom file
+#' @param loom .loom file name
+#' @return data.frame containing the cell annotations in the given loom (cells as rows, annotation variables as columns).
+#' @examples
+#' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+#' loom <- open_loom(loomPath)
+#' 
+#' cellAnnots <- get_cellAnnotation(loom)
+#' head(cellAnnots)
+#' @export
+get_cellAnnotation <- function(loom, annotCols=NULL)  
+{
+  excludeCols <- c("CellID", "ClusterID", "Clusterings", "Embedding", "Embeddings_X", "Embeddings_Y", "RegulonsAUC")
+  if(is.null(annotCols)) annotCols <- names(loom[["col_attrs"]])[which(!names(loom[["col_attrs"]]) %in% excludeCols)]
+  
+  cellAnnot <- list()
+  for (colAttr in annotCols){
+    cellAnnot[[colAttr]] <- get_col_attr_by_key(loom, colAttr) # loom[["col_attrs"]][[colAttr]][]
+  }
+  cellAnnot <- data.frame(cellAnnot)
+  rownames(cellAnnot) <- get_cell_ids(loom)
+  return(cellAnnot)
+}
+
+
+#' @title get_regulonsAuc
+#' @description Get AUCell matrix from the given loom file
+#' @param loom .loom file name
+#' @param rows Type of data stored as rows (only for informative purposes) Default: "regulons"
+#' @param columns Type of data stored as columns (only for informative purposes) Default: "cells"
+#' @return AUC matrix in the slot \code{loom[["col_attrs"]][["RegulonsAUC"]][]}. 
+#' If AUCell is installed, it will be stored as aucellResults object.
+#' @examples
+#' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+#' loom <- open_loom(loomPath)
+#' 
+#' regulonsAUC <- get_regulonsAuc(loom)
+#' @export
+get_regulonsAuc <- function(loom, rows="regulons", columns="cells") {
+  mtx <- loom[["col_attrs"]][["RegulonsAUC"]][]
+  rownames(mtx) <- get_cell_ids(loom)
+  mtx <- t(mtx)
+  names(dimnames(mtx)) <- c(rows, columns)
+  
+  if("AUCell" %in% rownames(installed.packages())){
+    require(AUCell)
+    mtx <- new("aucellResults", SummarizedExperiment::SummarizedExperiment(assays=list(AUC=mtx)))
+  }
+  return(mtx)
+}
+
+
+#' @title get_regulons
+#' @description Get regulons from the given loom file
+#' @param loom .loom file name
+#' @param tfAsName Whether to return only the TF name (calls \code{SCENIC::getTF()}), or the regulon name as stored in the loom file.
+#' @param tfSep Character used as separator for the TF name and extra values stored in the regulon name. To be passed to SCENIC::getTF()
+#' @return The regulons as incidence matrix or list.
+#' @examples
+#' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+#' loom <- open_loom(loomPath)
+#' 
+#' regulons <- get_regulons(loom)
+#' head(regulons)
+#' @export
+get_regulons <- function(loom, tfAsName=TRUE, tfSep="_"){
+  incidMat <- loom[["row_attrs"]][["Regulons"]][] # incid mat
+  rownames(incidMat) <- get_genes(loom)
+  incidMat <- t(incidMat)
+  
+  if(tfAsName) rownames(incidMat) <- SCENIC::getTF(rownames(incidMat), tfSep)
+  
+  return(incidMat)
+}
+
+#' @title get_regulonThresholds
+#' @description Get the AUC thresholds for the regulons in the given loom file
+#' @param loom .loom file name
+#' @param onlySelected Whether to return only the selected threshold for each regulon (as vector), 
+#' or also the alternative thresholds calculated by AUCell (as list).
+#' @examples
+#' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+#' loom <- open_loom(loomPath)
+#' 
+#' thresholds <- get_regulonThresholds(loom)
+#' head(thresholds)
+#' @export
+get_regulonThresholds <- function(loom, onlySelected=TRUE)
+{
+  if(onlySelected) {
+    thresholds <- sapply(get_global_meta_data(loom)$regulonThresholds, function(x) setNames(x$regulon, x$defaultThresholdValue))
+  }else{
+    regulonNames <- sapply(get_global_meta_data(loom)$regulonThresholds, function(x) x$regulon)
+    thresholds <- sapply(get_global_meta_data(loom)$regulonThresholds, function(x) {
+      #regulonName <- x$regulon
+      list(aucThr=list(
+        selected=x$defaultThresholdValue,
+        thresholds=data.frame(x$allThresholds) # if pySCENIC: transpose?
+      ))
+    })
+  }
+  
+  return(thresholds)
+}
+
 #'@title get_cell_mask_by_cluster_name
 #'@description Get a cell mask for the given cluster.name of the given loom.
 #'@param loom The loom file handler.
@@ -1664,5 +1819,3 @@ get_cluster_dgem_by_name<-function(loom
   dgem<-get_dgem(loom = loom)
   return (dgem[, mask])
 }
-
-
