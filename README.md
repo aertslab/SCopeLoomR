@@ -1,6 +1,5 @@
-# SCopeLoomR v0.3.3
-An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to extract
-data from .loom files.
+# SCopeLoomR v0.3.4
+An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to read data from .loom files.
 
 ## Requirements
 - HDF5 >= 1.10.1
@@ -24,16 +23,21 @@ For other HDF5 releases, please visit https://support.hdfgroup.org/ftp/HDF5/rele
 Installation should take less than one minute.
 
 ```
-install.packages("devtools")
-library(devtools)
-install_github("aertslab/SCopeLoomR")
+# install.packages("devtools")
+devtools::install_github("aertslab/SCopeLoomR")
 ```
 
 ## Tutorial
-You can find a tutorial on how to create .loom files and extract data from them [here](https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_tutorial.Rmd).
+You can find a tutorial on how to create .loom files and read data from them in the [package vignette](https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_tutorial.Rmd).
 
 ## Version History
 
+January 24, 2019
+
+* Version 0.3.4
+    * New functions to read SCENIC results (get_regulonsAuc, get_embeddings, get_regulons, get_cellAnnotation, get_clusterings_withName, get_regulonThresholds).
+    * Updates to documentation.
+    
 January 11, 2019
 
 * Version 0.3.3

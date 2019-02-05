@@ -1,12 +1,12 @@
 ---
-title: "SCopeLoomR Tutorial - Create a .loom file and extract data from a .loom"
+title: "SCopeLoomR Tutorial - Creating and reading .loom files"
 package: r pkg_ver('SCopeLoomR')
 output:
-  html_notebook:
-    toc: yes
   html_document:
     keep_md: true
     df_print: paged
+    toc: yes
+  html_notebook:
     toc: yes
   BiocStyle::html_document:
     number_sections: no
@@ -24,15 +24,19 @@ library(SCopeLoomR)
 library(SingleCellExperiment)
 ```
 
+
+*HTML built on `r format(Sys.time(), "%b %d %Y")` with SCopeLoomR **version `r packageVersion("SCopeLoomR")`***.
+
 # Introduction
 
-The .loom format is a file format designed to store very large omics datasets. It has been created is maintained by the [Linnarsson lab](http://linnarssonlab.org/). `SCopeLoomR` is an R package that helps you to create easily .loom files that follow the data [naming conventions](http://linnarssonlab.org/loompy/conventions/index.html) from loompy. 
+The .loom file format is designed to store very large omics datasets. It has been created is maintained by the [Linnarsson lab](http://linnarssonlab.org/), and its naming conventions are described in [loompy](http://linnarssonlab.org/loompy/conventions/index.html)
 
-`SCopeLoomR` was created along the development of SCope to help to store different data inside the .loom e.g.: regulon, regulon activities from SCENIC;  . Therefore, it 
+`SCopeLoomR` is an R package to easily create and manipulate .loom files. These loom files are compatible with [SCope](http://scope.aertslab.org), a loom viewer which also allows to visualize the results from [SCENIC](http://scenic.aertslab.org) (e.g.: regulon, regulon activities). 
 
 # Installation
 For example:
 ```{r install, eval=FALSE}
+#install.packages("devtools")
 devtools::install_github("aertslab/SCopeLoomR")
 ```
 
@@ -40,7 +44,7 @@ devtools::install_github("aertslab/SCopeLoomR")
 
 ## Load Data
 
-(minimum information required to create the object)
+Load the data to include in the loom file:
 
 ```{r loadData}
 library(SingleCellExperiment)
@@ -67,6 +71,8 @@ head(default.tsne)
 
 ## Create loom file 
 
+Minimum information required to create the .loom object:
+
 ```{r createLoom}
 library(SCopeLoomR)
 
@@ -80,7 +86,9 @@ loom <- build_loom(file.name=file.name,
                    default.embedding.name=default.tne.name)
 ```
 
-## Add/update hierarchy
+## Add optional information 
+
+### Hierarchy
 
 You can organize/group your .loom files in SCope by specifiying differents grouping levels. The current .loom file will be put in `Mouse -> Toy Datasets` branch of the SCope loom tree. 
 
@@ -88,52 +96,49 @@ You can organize/group your .loom files in SCope by specifiying differents group
 add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "Mouse", level.2.name = "Toy Datasets", level.3.name = ""))
 ```
 
-To update hierarchy of a .loom file,
+The same command can be used to update the hierarchy of a .loom file (set `overwrite=TRUE`):
 
-```{r}
-loom <- open_loom(file.path = "[path-to-loom]")
+```{r, eval=FALSE}
 add_hierarchy(loom = loom, hierarchy = create_hierarchy(level.1.name = "[level-1-name]", level.2.name = "[level-2-name]", level.3.name = "[level-3-name]"), overwrite = T)
 ```
 
 
-## Add annotations/metrics
+### Annotations/metrics
 
-You can add different annotations and/or metrics that you will be able to query in SCope.
+Annotations and/or metrics can be added to query in [SCope](http://scope.aertslab.org).
 
 ```{r}
-# Add annotation
+# Add annotation (categorical variable)
 add_col_attr(loom=loom, key = "Cell type", value=cell.info$cellType, as.annotation=T)
-# Add metric
-add_col_attr(loom=loom, key = "nGene", value=cell.info$nGene, as.metric = T)
+# Add metric (numerical variable)
+add_col_attr(loom=loom, key = "Age", value=sample(0:20, nrow(cell.info), replace=T), as.metric = T)
 ```
 
-## Add SCENIC results (Optional)
-
-*(Not run in this example)*
+### SCENIC results 
 
 ```{r addSCENIC, eval=FALSE}
-scenic.dir <- "./" # Modify if needed
+scenic.dir <- file.path(system.file('extdata', package='SCopeLoomR'), "SCENIC_fakeOutput/") # Modify for your analysis
 
-# Regulons AUC matrix
+# Regulon activity (AUC matrix)
 library(AUCell)
-load(paste0(scenic.dir, "int/3.2_regulonAUC.RData"), verbose=TRUE)
-regulons.AUC <- updateAucellResults(regulonAUC)
-add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulons.AUC))
+regulonsAUC <- readRDS(file.path(scenic.dir, "int/3.4_regulonAUC.Rds"))
+add_scenic_regulons_auc_matrix(loom=loom, regulons.AUC=getAUC(regulonsAUC))
 
 # Regulons (gene list), regulon thresholds (optional) and regulon motifs (optional)
-load(paste0(scenic.dir, "int/3.0_regulons_forAUCell.RData"), verbose=TRUE)
-regulon.enrichment.table<-read.table(file = "output/Step2_MotifEnrichment.tsv", header = T, sep = "\t", quote = '', stringsAsFactors = F)
+regulons <- readRDS(file.path(scenic.dir, "int/3.1_regulons_forAUCell.Rds"))
+aucThresholds <- readRDS(file.path(scenic.dir, "int/3.5_AUCellThresholds.Rds"))
+regulon.enrichment.table <- NULL # readRDS(file.path(scenic.dir, "int/2.3_motifEnrichment.Rds"))
 add_scenic_regulons(loom=loom
                     , regulons=regulons
-                    , regulon.threshold.assignments=...$threshold.assignment # Optional
-                    , regulon.enrichment.table = regulon.enrichment.table # Optional) 
-
+                    , regulon.threshold.assignments=aucThresholds# $threshold.assignment # Optional
+                    , regulon.enrichment.table = regulon.enrichment.table) # Optional
+                    
 # Alternative t-SNE
-load(paste0(scenic.dir, "int/3.3_tsneRegulonAUC_PCA_50pc50perpl.RData"))
+tSNE <- readRDS(file.path(scenic.dir, "int/tSNE_AUC_50pcs_50perpl.Rds"))
 add_embedding(loom=loom, embedding=tSNE$Y, name="SCENIC (t-SNE on AUC)")
 ```
 
-## Add Seurat results (Optional)
+### Seurat results 
 
 *(Not run in this example. You would need to use your own file names)*
 
@@ -146,15 +151,15 @@ seurat <- readRDS(paste0(seurat.dir, "seuratObject.rds.gz"))
 add_embedding(loom=loom, embedding=seurat.tsne, name="Seurat 82PC, 30perp"))
 ```
 
-### Add clusterings
+#### Clusterings
 
-```{r}
+```{r eval=FALSE}
 add_seurat_clustering(loom = loom
                       , seurat = seurat)
 ```
 
-### Add clustering(s) along with annotation for a given resolution (default one if set)
-```{r}
+##### Adding clustering(s) along with annotation for a given resolution (default one if set)
+```{r eval=FALSE}
 seurat.annotation<-read.table(file = paste0(seuratDir, "Res2_Clusters.tsv", header=T, quote = '', sep = "\t", stringsAsFactors=F))
 add_seurat_clustering(loom = loom
                       , seurat = seurat
@@ -164,8 +169,8 @@ add_seurat_clustering(loom = loom
                       , annotation.cluster.description.cn = "Annotation")
 ```
 
-### Add clustering(s) along with cluster markers 
-```{r}
+##### Adding clustering(s) along with cluster markers 
+```{r eval=FALSE}
 seurat.resolutions <- get_seurat_clustering_resolutions(seurat = seurat)
 seurat.markers.file.path.list<-do.call(what = "c", lapply(X=seurat.resolutions, FUN=function(resolution) {
   l<-list()
@@ -177,9 +182,9 @@ add_seurat_clustering(loom = loom
                       , seurat.markers.file.path.list = seurat.markers.file.path.list)
 ```
 
-### Add clustering(s), along with cluster markers and metrics (e.g.: logFC, p-value, ...)
+##### Adding clustering(s), along with cluster markers and metrics (e.g.: logFC, p-value, ...)
 
-```{r}
+```{r eval=FALSE}
 add_seurat_clustering(loom = loom
                       , seurat = seurat
                       , seurat.markers.file.path.list = seurat.markers.file.path.list
@@ -189,12 +194,11 @@ add_seurat_clustering(loom = loom
                                                              , "Adjusted p-value using Bonferroni correction based on the total number of genes in the dataset (cfr. Seurat)"))
 ```
 
-## Add single-cell trajectory data
+### Single-cell trajectories
 
-### Monocle
-Add the trajectory data from a CellDataSet object generated by monocle.
+**Monocle**: Adding the trajectory data from a CellDataSet object generated by monocle.
 
-```{r}
+```{r eval=FALSE}
 # Add monocle embedding and trajectory
 S_matrix <- reducedDimS(cds)
 monocle.embedding<-data.frame(t(S_matrix[c(1, 2), ]))
@@ -207,24 +211,39 @@ add_embedding(loom = loom, embedding = monocle.embedding, name = "Monocle (DDRTr
 finalize(loom=loom)
 ```
 
-# Extract data from a loom object
-
-The .loom file related to this part of the tutorial can be downloaded at http://scope.aertslab.org in the left panel under `Drosophila` > `Brain`.
+# Read data from a loom object
 
 ## Get the gene expression matrix
 
 ```{r}
-loom<-open_loom(loom = "Aerts_Fly_AdultBrain_Filtered_57k.loom")
-dgem<-get_dgem(loom = loom)
+loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+loom <- open_loom(loomPath)
+dgem <- get_dgem(loom)
 ```
 
 ## Get the gene expression matrix of a given cluster
 
-```{r}
-loom<-open_loom(loom = "Aerts_Fly_AdultBrain_Filtered_57k.loom")
+This .loom file can be downloaded at http://scope.aertslab.org in the left panel under `Drosophila` > `Brain`.
+
+```{r eval=FALSE}
+loom <- open_loom(loom = "Aerts_Fly_AdultBrain_Filtered_57k.loom")
 cluster.10.dgem<-get_cluster_dgem_by_name(loom = loom, cluster.name = "Astrocyte-like - Cluster 10")
 ```
 
+## Other general accessors
 
+```{r loomSCENIC}
+loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
+loom <- open_loom(loomPath)
+
+# SCENIC results:
+regulons_incidMat <- get_regulons(loom)
+regulonsAUC <- get_regulonsAuc(loom)
+regulonsAucThresholds <- get_regulonThresholds(loom)
+embeddings <- get_embeddings(loom)
+
+# Use the loaded info... e.g.:
+plot(embeddings[[1]], pch=16)
+```
 
 

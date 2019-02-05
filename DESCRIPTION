@@ -1,7 +1,7 @@
 Package: SCopeLoomR
 Type: Package
 Title: Build .loom files (compatible with SCope) and extract data from .loom files.
-Version: 0.3.3
+Version: 0.3.4
 Author: mase5
 Maintainer: mase5 <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files aligning with the default naming convention of the .loom format and 
@@ -12,4 +12,4 @@ Suggests: seurat, stringr
 License: Apache-2
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 6.1.0
+RoxygenNote: 6.1.1
