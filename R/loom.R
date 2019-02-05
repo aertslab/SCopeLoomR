@@ -1238,8 +1238,8 @@ build_loom<-function(file.name
                      , title = NULL
                      , genome = NULL
                      , dgem
-                     , default.embedding
-                     , default.embedding.name
+                     , default.embedding = NULL
+                     , default.embedding.name = NULL
                      , hierarchy = NULL
                      , fbgn.gn.mapping.file.path = NULL
                      , chunk.size = 1000
@@ -1306,9 +1306,16 @@ build_loom<-function(file.name
       nGene<-colSums(dgem > 0)
     }
     add_col_attr(loom = loom, key = "nGene", value = nGene, as.metric = T)
-    print("Adding default embedding...")
-    # Add the default embedding
-    add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
+    if(!is.null(x = default.embedding)) {
+      print("Adding default embedding...")
+      # Add the default embedding
+      if(is.null(x = default.embedding.name)) {
+        default.embedding.name<-"Embedding"
+      }
+      add_embedding(loom = loom, embedding = as.data.frame(default.embedding), name = default.embedding.name, is.default = T)
+    } else {
+      warning("No default embedding set for the loom. You'll not be able to visualize it in SCope.")
+    }
     # row_attrs
     print("Adding row attributes...")
     loom$create_group("row_attrs")
