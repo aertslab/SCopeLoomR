@@ -4,10 +4,12 @@
 \alias{open_loom}
 \title{open_loom}
 \usage{
-open_loom(file.path)
+open_loom(file.path, mode = "r+")
 }
 \arguments{
 \item{file.path}{The file path to the .loom file.}
+
+\item{mode}{"r+" for read/write (default). "r" for read-only.}
 }
 \value{
 A loom file handler

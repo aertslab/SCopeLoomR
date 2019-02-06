@@ -5,9 +5,9 @@
 \title{build_loom}
 \usage{
 build_loom(file.name, title = NULL, genome = NULL, dgem,
-  default.embedding, default.embedding.name, hierarchy = NULL,
-  fbgn.gn.mapping.file.path = NULL, chunk.size = 1000,
-  display.progress = T)
+  default.embedding = NULL, default.embedding.name = NULL,
+  hierarchy = NULL, fbgn.gn.mapping.file.path = NULL,
+  chunk.size = 1000, display.progress = T)
 }
 \arguments{
 \item{file.name}{A string naming the .loom file to be generated.}

@@ -32,8 +32,11 @@ You can find a tutorial on how to create .loom files and read data from them in 
 
 ## Version History
 
-January 24, 2019
-
+January, 2019
+* Version 0.3.5
+    * close_loom(): New function
+    * open_loom(): Added argument "mode" and option to open as read-only (mode="r")
+    
 * Version 0.3.4
     * New functions to read SCENIC results (get_regulonsAuc, get_embeddings, get_regulons, get_cellAnnotation, get_clusterings_withName, get_regulonThresholds).
     * Updates to documentation.
