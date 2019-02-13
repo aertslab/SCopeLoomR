@@ -1,11 +1,11 @@
 Package: SCopeLoomR
 Type: Package
 Title: Build .loom files (compatible with SCope) and extract data from .loom files.
-Version: 0.3.5
+Version: 0.4.0
 Author: mase5
 Maintainer: mase5 <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files aligning with the default naming convention of the .loom format and 
-    to integrate other data types e.g.: regulons (SCENIC), clusters from Seurat, ... The package can also be used to extract
+    to integrate other data types e.g.: regulons (SCENIC), clusters from Seurat, trajectory information... The package can also be used to extract
     data from .loom files.
 Imports: hdf5r, rjson, utils, methods, base, base64enc, igraph, plyr, rlist, Matrix
 Suggests: seurat, stringr

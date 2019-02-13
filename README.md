@@ -1,4 +1,4 @@
-# SCopeLoomR v0.3.4
+# SCopeLoomR v0.4.0
 An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to read data from .loom files.
 
 ## Requirements
@@ -31,6 +31,10 @@ devtools::install_github("aertslab/SCopeLoomR")
 You can find a tutorial on how to create .loom files and read data from them in the [package vignette](https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_tutorial.Rmd).
 
 ## Version History
+
+February, 2019
+* Version 0.4.0
+    * Embeddings and trajectories inferred from TI methods available within the dyno framework can be stored in .loom files and be displayed in SCope.
 
 January, 2019
 * Version 0.3.5
