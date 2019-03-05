@@ -431,6 +431,12 @@ add_embedding<-function(loom
                         , is.default = F
                         , trajectory = NULL) {
   if(loom$mode=="r") stop("File open as read-only.")
+  
+  # Check if any NA values
+  if(any(is.na(x = embedding))) {
+    stop("Please make sure that the embeddings do not contain any NA values.")
+  }
+  
   # Check MetaData global attribute
   check_global_meta_data(loom = loom)
   
@@ -1255,6 +1261,12 @@ add_matrix<-function(loom
                      , chunk.size
                      , display.progress) {
   if(loom$mode=="r") stop("File open as read-only.")
+  
+  # Check if any NA values
+  if(any(is.na(x = dgem))) {
+    stop("Please make sure that the expression matrix (dgem) does not contain any NA values.")
+  }
+  
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
   dtype<-get_dtype(x = dgem[1, 1])
