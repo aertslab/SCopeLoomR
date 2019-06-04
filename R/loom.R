@@ -390,10 +390,6 @@ clear_global_meta_data<-function(loom) {
 # Embedding functions #
 #######################
 
-add_seurat_embbedings<-function(seurat) {
-  
-}
-
 #'@title add_embedding_dyno
 #'@description Add the given embedding as a column attribute and meta data related to the given embeddding to the given .loom file handler.
 #'@param loom The loom file handler.
@@ -605,7 +601,7 @@ get_seurat_clustering_resolutions<-function(seurat, prefix = NULL) {
 #'@description Add all the Seurat clusterings in the given seurat object to the given .loom file handler.
 #'@param loom                                 The loom file handler.
 #'@param seurat                               The Seurat object
-#'@param seurat.assay                         The assay to access the data from (only if you're using Seurat version 3).
+#'@param seurat.assay                         The assay to access the data from (only if you're using Seurat version 3). Option used only for sanity checks.
 #'@param seurat.markers.file.path.list        The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL. 
 #'@param default.clustering.resolution        The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default which an annotation can be set for.
 #'@param annotation                           A data.frame with annotation for the clusters of the default clustering. Default is NULL.

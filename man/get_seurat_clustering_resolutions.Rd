@@ -4,10 +4,12 @@
 \alias{get_seurat_clustering_resolutions}
 \title{get_seurat_clustering_resolutions}
 \usage{
-get_seurat_clustering_resolutions(seurat)
+get_seurat_clustering_resolutions(seurat, prefix = NULL)
 }
 \arguments{
 \item{seurat}{A Seurat object.}
+
+\item{prefix}{Prefix of the clustering to extract the resolutions from (only for Seurat v3 objects).}
 }
 \description{
 Get list of all computed clusterings resolutions in the given seurat object.

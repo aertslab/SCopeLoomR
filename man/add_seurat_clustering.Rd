@@ -4,7 +4,9 @@
 \alias{add_seurat_clustering}
 \title{add_seurat_clustering}
 \usage{
-add_seurat_clustering(loom, seurat, seurat.markers.file.path.list = NULL,
+add_seurat_clustering(loom, seurat, seurat.assay = "RNA",
+  seurat.clustering.prefix = NULL,
+  seurat.markers.file.path.list = NULL,
   seurat.marker.metric.accessors = NULL,
   seurat.marker.metric.names = NULL,
   seurat.marker.metric.description = NULL,
@@ -17,6 +19,8 @@ add_seurat_clustering(loom, seurat, seurat.markers.file.path.list = NULL,
 \item{loom}{The loom file handler.}
 
 \item{seurat}{The Seurat object}
+
+\item{seurat.assay}{The assay to access the data from (only if you're using Seurat version 3). Option used only for sanity checks.}
 
 \item{seurat.markers.file.path.list}{The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL.}
 
