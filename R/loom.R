@@ -223,6 +223,7 @@ add_global_md_clustering<-function(loom
   } else {
     unique.clusters<-sort(unique(clusters), decreasing = F)
   }
+  
   clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
     description<-paste("NDA - Cluster", cluster.id)
     if(!is.null(annotation)) {
@@ -232,6 +233,7 @@ add_global_md_clustering<-function(loom
       # d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
       # Convert from factor to character vector to be used with nchar
       d<-as.character(unique(annotation[clusters == cluster.id])) 
+      
       if(length(d) > 1) {
         stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
       }
@@ -387,6 +389,10 @@ clear_global_meta_data<-function(loom) {
 #######################
 # Embedding functions #
 #######################
+
+add_seurat_embbedings<-function(seurat) {
+  
+}
 
 #'@title add_embedding_dyno
 #'@description Add the given embedding as a column attribute and meta data related to the given embeddding to the given .loom file handler.
@@ -568,15 +574,38 @@ create_trajectory<-function(edges, coordinates) {
 #'@title get_seurat_clustering_resolutions
 #'@description Get list of all computed clusterings resolutions in the given seurat object.
 #'@param seurat A Seurat object.
+#'@param prefix Prefix of the clustering to extract the resolutions from (only for Seurat v3 objects).
 #'@export
-get_seurat_clustering_resolutions<-function(seurat) {
-  return(as.numeric(stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2]))
+get_seurat_clustering_resolutions<-function(seurat, prefix = NULL) {
+  if(seurat@version >= 3) {
+    clustering.ids <- grep(pattern = "res\\.", x = colnames(x = seurat@meta.data))
+    clustering.prefix <- paste0(unique(x = stringr::str_split_fixed(string = colnames(x = seurat@meta.data)[clustering.ids], pattern = "res.", n = 2)[,1]), "res.")
+
+    # Check if there are multiple prefixes for clustering information
+    # Seurat v3 uses integrated_snn_ prefix for storing clustering information from its integration method
+    if(length(x = clustering.prefix) > 1 & is.null(x = prefix)) {
+      stop(paste0("Detected multiple prefixes for clustering information: ", paste(clustering.prefix, collapse = ", "), " . Please select one of them using the prefix argument."))
+    } else if(length(x = clustering.prefix) == 1) {
+      prefix <- clustering.prefix
+    } else if(length(x = clustering.prefix) == 0) {
+      stop("It seems that clustering data has not been computed. ")
+    }
+    if(length(x = prefix) == 1 & !(prefix %in% clustering.prefix)) {
+      stop("The selected prefix does not exist.")
+    }
+    return (as.numeric(x = stringr::str_split_fixed(string = colnames(x = seurat@meta.data)[grep(pattern = paste0("^", prefix), x = colnames(x = seurat@meta.data))], pattern = prefix, n = 2)[,2]))
+  } else if (seurat@version >= 2 & seurat@version < 3){
+    return (as.numeric(x = stringr::str_split_fixed(string = names(seurat@calc.params)[grep(pattern = "FindClusters", x = names(seurat@calc.params))], pattern = "FindClusters.res.", n = 2)[,2]))
+  } else {
+    stop(paste0("This version of Seurat ", seurat@version," is not supported."))
+  }
 }
 
 #'@title add_seurat_clustering
 #'@description Add all the Seurat clusterings in the given seurat object to the given .loom file handler.
 #'@param loom                                 The loom file handler.
 #'@param seurat                               The Seurat object
+#'@param seurat.assay                         The assay to access the data from (only if you're using Seurat version 3).
 #'@param seurat.markers.file.path.list        The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL. 
 #'@param default.clustering.resolution        The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default which an annotation can be set for.
 #'@param annotation                           A data.frame with annotation for the clusters of the default clustering. Default is NULL.
@@ -585,6 +614,8 @@ get_seurat_clustering_resolutions<-function(seurat) {
 #'@export
 add_seurat_clustering<-function(loom
                                 , seurat
+                                , seurat.assay = "RNA"
+                                , seurat.clustering.prefix = NULL
                                 , seurat.markers.file.path.list = NULL
                                 , seurat.marker.metric.accessors = NULL
                                 , seurat.marker.metric.names = NULL
@@ -605,27 +636,51 @@ add_seurat_clustering<-function(loom
     }
   }
   
-  # Check that all cells present in loom digital expression matrix are present in the given seurat@data and seurat@scale.data objects
-  cells<-get_cell_ids(loom = loom)
-  n.cells<-length(cells)
-  if(sum(cells %in% colnames(seurat@data)) != n.cells | sum(cells %in% colnames(seurat@scale.data)) != n.cells) {
-    stop("Some cells are missing. Please check that all cells from the digital expression matrix (dgem) in the given loom are present in the seurat@data and seurat@scale.data slots.")
+  # Access data
+  if(seurat@version >= 3) {
+    counts <- seurat@assays[[seurat.assay]]@counts
+    data <- seurat@assays[[seurat.assay]]@data
+  } else if (seurat@version >= 2 & seurat@version < 3){
+    counts <- seurat@raw.data
+    data <- seurat@data
+  } else {
+    stop(paste0("This version of Seurat ", seurat@version," is not supported."))
   }
   
-  clustering.resolutions<-get_seurat_clustering_resolutions(seurat)
-  if(length(clustering.resolutions) > 0) {
+  # Check that all cells present in loom digital expression matrix are present in the given seurat@data and seurat@scale.data objects
+  cells<-get_cell_ids(loom = loom)
+  n.cells <- length(cells)
+  if(sum(cells %in% colnames(x = counts)) != n.cells | sum(cells %in% colnames(x = data)) != n.cells) {
+    stop(paste0("Some cells are missing. Please check that all cells from the digital expression matrix (dgem) in the given loom are present in the data slots i.e.: seurat@raw.data, seurat@data or seurat@assays[[", seurat.assay, "]]@counts, seurat@assays[[", seurat.assay, "]]@data"))
+  }
+  
+  clustering.resolutions <- get_seurat_clustering_resolutions(seurat = seurat
+                                                              , prefix = seurat.clustering.prefix)
+  if(length(x = clustering.resolutions) > 0) {
     for(res in clustering.resolutions) {
-      resolution.id<-paste0("res.",res)
-      print(paste0("Seurat resolution ", res))
-      seurat<-Seurat::SetAllIdent(object=seurat, id=resolution.id)
-      cluster.ids<-seurat@ident
+      
+      # Get cluster IDs for the current clustering
+      resolution.id<-paste0(seurat.clustering.prefix,res)
+      print(paste0("Seurat, ", seurat.clustering.prefix, res))
+      
+      if(seurat@version >= 3) {
+        Seurat::Idents(object = seurat)<-paste0(seurat.clustering.prefix, res)
+        cluster.ids<-Idents(object = seurat)
+      } else if (seurat@version >= 2 & seurat@version < 3){
+        seurat<-Seurat::SetAllIdent(object = seurat, id=resolution.id)
+        cluster.ids<-seurat@ident
+      } else {
+        stop(paste0("This version of Seurat ", seurat@version," is not supported."))
+      }
+      
       is.default.clustering<-F
+      
       # Add the Seurat clusters
       print("Adding Seurat clusters...")
       a<-NULL
       ac.id.cn<-NULL
       ac.description.cn<-NULL
-      if(!is.null(default.clustering.resolution)) {
+      if(!is.null(x = default.clustering.resolution)) {
         if(res == default.clustering.resolution | resolution.id == default.clustering.resolution) {
           print("Adding default Seurat clusters...")
           if(!is.null(annotation) & !is.null(annotation.cluster.id.cn) & !is.null(annotation.cluster.description.cn)) {
@@ -645,7 +700,7 @@ add_seurat_clustering<-function(loom
       cluster.annotation<-create_cluster_annotation(clusters = cluster.ids, cluster.meta.data.df = a, cluster.id.cn = ac.id.cn,  cluster.description.cn = ac.description.cn)
       clid<-add_annotated_clustering(loom = loom
                                    , group = "Seurat"
-                                   , name = paste("Seurat, resolution",res)
+                                   , name = paste("Seurat,", paste0(seurat.clustering.prefix, res))
                                    , clusters = cluster.ids
                                    , annotation = cluster.annotation
                                    , is.default = is.default.clustering
@@ -1467,6 +1522,8 @@ lookup_loom<-function(loom) {
 open_loom<-function(file.path, mode="r+") {
   return (H5File$new(file.path, mode=mode))
 }
+
+
 
 ##############################
 # Utils                      #
