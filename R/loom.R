@@ -1291,16 +1291,18 @@ add_col_attr<-function(loom
   }
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
-  loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
-  flush(loom = loom)
   if(as.annotation) {
+    value<-as.character(x = value)
     add_global_md_annotation(loom = loom, name = key, values = as.character(value))
     flush(loom = loom)
   }
   if(as.metric) {
+    value<-as.numeric(x = value)
     add_global_md_metric(loom = loom, name = key)
     flush(loom = loom)
   }
+  loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
+  flush(loom = loom)
 }
 
 #'@title add_matrix
