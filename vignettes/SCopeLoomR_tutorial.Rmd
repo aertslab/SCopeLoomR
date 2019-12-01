@@ -79,15 +79,24 @@ library(SCopeLoomR)
 
 ### Create the minimal loom file
 file.name <- "example.loom"
-loom <- build_loom(file.name=file.name,
-                   dgem=dgem,
-                   title="Fake expression dataset for examples",
-                   genome="Mouse", # Just for user information, not used internally
-                   default.embedding=default.tsne,
-                   default.embedding.name=default.tne.name)
+build_loom(
+  file.name=file.name,
+  dgem=dgem,
+  title="Fake expression dataset for examples",
+  genome="Mouse", # Just for user information, not used internally
+  default.embedding=default.tsne,
+  default.embedding.name=default.tne.name
+)
+# 
 ```
 
 ## Add optional information 
+
+To add any following information to a loom, please run the following command before
+
+```{r}
+loom <- open_loom(file.name)
+```
 
 ### Hierarchy
 
