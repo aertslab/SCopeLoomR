@@ -660,8 +660,11 @@ add_seurat_clustering<-function(loom
       print(paste0("Seurat, ", seurat.clustering.prefix, res))
       
       if(seurat@version >= 3) {
-        Seurat::Idents(object = seurat)<-paste0(seurat.clustering.prefix, res)
-        cluster.ids<-Idents(object = seurat)
+        if(is.null(x = seurat.clustering.prefix)) {
+          stop("The given seurat.clustering.prefix is required. E.g.: RNA_snn_res.")
+        }
+        cluster.ids<-seurat@meta.data[, paste0(seurat.clustering.prefix, res)]
+        names(cluster.ids) <- rownames(seurat@meta.data)
       } else if (seurat@version >= 2 & seurat@version < 3){
         seurat<-Seurat::SetAllIdent(object = seurat, id=resolution.id)
         cluster.ids<-seurat@ident
@@ -782,9 +785,9 @@ create_cluster_annotation<-function(clusters
       if(!(cluster.description.cn %in% colnames(cluster.meta.data.df))) {
         stop(paste0("The given column ",cluster.description.cn, " does not exists in the annotation provided."))
       }
-      description<-cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]
+      description<-as.vector(unlist(cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]))
     }
-    annotation[clusters == cluster]<-description
+    annotation[as.vector(unlist(clusters)) == cluster]<-description
   }
   annotation<-factor(x = annotation)
   names(x = annotation)<-names(clusters)
@@ -1482,12 +1485,12 @@ build_loom<-function(file.name
     if(!is.null(fbgn.gn.mapping.file.path)) {
       add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)
     }
-    # col_edges
-    print("Adding columns edges...")
-    col.edges<-loom$create_group("col_edges")
+    # col_graphs
+    print("Adding columns graphs...")
+    col.graphs<-loom$create_group("col_graphs")
     # row_edges
-    print("Adding row edges...")
-    row.edges<-loom$create_group("row_edges")
+    print("Adding row graphs...")
+    row.graphs<-loom$create_group("row_graphs")
     # layers
     print("Adding layers...")
     layers<-loom$create_group("layers")
@@ -1987,3 +1990,4 @@ get_cluster_dgem_by_name<-function(loom
   dgem<-get_dgem(loom = loom)
   return (dgem[, mask])
 }
+
