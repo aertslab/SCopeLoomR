@@ -31,6 +31,7 @@ GA_TITLE_NAME<-"title"
 GA_TITLE_GENOME<-"Genome"
 GA_CREATION_DATE_NAME<-"CreationDate"
 GA_R_VERSION_NAME<-"RVersion"
+GA_LOOM_SPEC_VERSION<-"LOOM_SPEC_VERSION"
 
 # Miscellaneous
 BASE64_PATTERN<-"^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$"
@@ -98,6 +99,37 @@ hierarchy_exists<-function(loom) {
 ##############################
 # Global Meta data functions #
 ##############################
+
+is_loom_spec_version_3_or_greater <- function(loom) {
+  return (get_global_loom_spec_version(loom = loom) >= 3)
+}
+
+get_global_loom_spec_version<-function(loom) {
+  if(loom$link_exists(name = "attrs")) {
+    loom.spec.version <- loom[["attrs"]][[GA_LOOM_SPEC_VERSION]][]
+    if(loom.spec.version < 3)
+      stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 3 but it's different (",loom.spec.version,") !"))
+    return (loom.spec.version)
+  } else {
+    loom.spec.version = h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
+    if(loom.spec.version >= 2)
+      stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 2 but it's different (",loom.spec.version,") !"))
+    return (loom.spec.version)
+  }
+}
+
+add_global_loom_spec_version<-function(loom, loom.spec.version) {
+  dtype<-guess_dtype(x = "foo")
+  # Encode character vector to UTF-8
+  dtype<-hdf5_utf8_encode(value = "foo", dtype = dtype)
+  if(loom.spec.version == 3) {
+    loom$create_dataset(name = paste0("attrs/", GA_LOOM_SPEC_VERSION), robj = "3.0.0", dtype = dtype, space = get_dspace(x = "scalar"))
+  } else if(loom.spec.version == 2) {
+    loom$create_attr(attr_name = GA_LOOM_SPEC_VERSION, robj = "2.0.0", dtype = dtype, space = get_dspace(x = "scalar")) 
+  } else {
+    stop("Invalid loom.spec.version!")
+  }
+}
 
 #'@title add_global_md_metric
 #'@description  Add the metric with the given name to the global MetaData attribute.
@@ -323,20 +355,28 @@ global_meta_data_exists<-function(loom) {
   return (loom$attr_exists(attr_name = GA_METADATA_NAME))
 }
 
+load_global_meta_data <- function(meta.data) {
+  if(!is_base64_encoded(value = meta.data)) {
+    if(!is_json(value = meta.data))
+      stop("The global MetaData attribute in the given loom is corrupted.")
+  } else {
+    meta.data<-decompress_gzb64(gzb64c = meta.data)
+  }
+  return (rjson::fromJSON(json_str = meta.data))
+}
+
 #'@title get_global_meta_data
 #'@description Get the global MetaData attribute as a R object.
 #'@param loom The loom file handler.
 #'@export
 get_global_meta_data<-function(loom) {
-  meta.data<-h5attr(x = loom, which = GA_METADATA_NAME)
-  if(!is_base64_encoded(value = meta.data)) {
-    if(!is_json(value = meta.data)) {
-      stop("The global MetaData attribute in the given loom is corrupted.")
-    }
+  # Check if the given loom is v3
+  if(loom$link_exists(name = "attrs")) {
+    md<-loom[["attrs"]][["MetaData"]][]
   } else {
-    meta.data<-decompress_gzb64(gzb64c = meta.data)
+    md<-h5attr(x = loom, which = GA_METADATA_NAME)
   }
-  return (rjson::fromJSON(json_str = meta.data))
+  return (load_global_meta_data(meta.data = md))
 }
 
 #'@title update_global_meta_data
@@ -351,21 +391,25 @@ update_global_meta_data<-function(loom
 
 #'@title init_global_meta_data
 #'@description  Initialize the global MetaData attribute.
-#'@param loom   The loom file handler.
+#'@param loom               The loom file handler.
+#'@param loom.spec.version  The version of the loom specification. Choose on of: 2 or 3
 #'@export
-init_global_meta_data<-function(loom) {
+init_global_meta_data<-function(loom, loom.spec.version) {
+  if(!(loom.spec.version %in% c(2,3)))
+     stop("Invalid loom.spec.version!")
+  
   meta.data<-list(annotations = list()
                   , metrics = list()
                   , embeddings = list()
                   , clusterings = list()
                   , regulonThresholds = list())
   meta.data.json<-rjson::toJSON(meta.data)
-  if(!(GA_METADATA_NAME %in% list.attributes(object = loom))) {
-    compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-    add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
-  } else {
+  if(GA_METADATA_NAME %in% list.attributes(object = loom))
     stop("The MetaData global attribute already exists.")
+  if(loom.spec.version < 3) {
+    meta.data<-compress_gzb64(c = as.character(meta.data.json))
   }
+  add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(meta.data))
 }
 
 #'@title clear_global_meta_data
@@ -1118,7 +1162,9 @@ add_fbgn<-function(loom
 #'@param loom The loom file handler.
 #'@export
 lookup_all_global_attr<-function(loom) {
-  list.attributes(object = loom)
+  if(is_loom_spec_version_3_or_greater(loom = loom))
+    return (loom[["attrs"]]$names)
+  return (list.attributes(object = loom))
 }
 
 
@@ -1130,7 +1176,7 @@ lookup_all_global_attr<-function(loom) {
 update_global_attr<-function(loom
                              , key
                              , value) {
-  if(loom$mode=="r") stop("File open as read-only.")
+  if(loom$mode=="r") stop("Cannot update the given global attribute: file open as read-only.")
   remove_global_attr(loom = loom, key = key)
   add_global_attr(loom = loom, key = key, value = value)
 }
@@ -1142,8 +1188,12 @@ update_global_attr<-function(loom
 #'@param key  The key of the global attribute to remove.
 remove_global_attr<-function(loom
                              , key) {
-  if(loom$mode=="r") stop("File open as read-only.")
-  loom$attr_delete(attr_name = key)
+  if(loom$mode=="r") stop("Cannot renove the given global attribute: file open as read-only.")
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    loom$link_delete(name = paste0("attrs/",key))
+  } else {
+    loom$attr_delete(attr_name = key)
+  }
   flush(loom = loom)
 }
 
@@ -1155,7 +1205,9 @@ remove_global_attr<-function(loom
 #'@export
 get_global_attr<-function(loom
                           , key) {
-  h5attr(x = loom, which = key)
+  if(is_loom_spec_version_3_or_greater(loom = loom))
+    return (loom[["attrs"]][[key]][])
+  return (h5attr(x = loom, which = key))
 }
 
 #'@title add_global_attr
@@ -1163,6 +1215,7 @@ get_global_attr<-function(loom
 #'@param loom   The loom file handler.
 #'@param key    The name of the new added attribute.
 #'@param value  The value of the new added attribute.
+#'@export
 add_global_attr<-function(loom
                           , key
                           , value
@@ -1173,7 +1226,11 @@ add_global_attr<-function(loom
   }
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
-  loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar"))
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    loom$create_dataset(name = paste0("attrs/", key), robj = value, dtype = dtype, space = get_dspace(x = "scalar"))
+  } else {
+    loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar")) 
+  }
   flush(loom = loom)
 }
 
@@ -1404,11 +1461,19 @@ build_loom<-function(file.name
                      , hierarchy = NULL
                      , fbgn.gn.mapping.file.path = NULL
                      , chunk.size = 1000
-                     , display.progress = T) {
+                     , display.progress = T
+                     , loom.spec.version = 3) {
   is.dgem.sparse<-F
   loom<-H5File$new(filename = file.name, mode = "w")
   tryCatch({
+    # global attrs
     print("Adding global attributes...")
+    if(loom.spec.version > 3) {
+      loom$create_group("attrs")
+    }
+    # Add LOOM_SPEC_VERSION
+    add_global_loom_spec_version(loom, loom.spec.version = loom.spec.version)
+    
     # title
     if(!is.null(title)) {
       add_global_attr(loom = loom, key = GA_TITLE_NAME, value = as.character(title))
@@ -1425,7 +1490,7 @@ build_loom<-function(file.name
     cn<-colnames(dgem)
     rn<-row.names(dgem)
     # global MetaData attribute
-    init_global_meta_data(loom = loom)
+    init_global_meta_data(loom = loom, loom.spec.version = loom.spec.version)
     
     # Add hierarchy levels
     if(!is.null(hierarchy)) {
@@ -1521,6 +1586,12 @@ lookup_loom<-function(loom) {
 #'@return A loom file handler
 #'@export
 open_loom<-function(file.path, mode="r+") {
+  loom <- H5File$new(file.path, mode=mode)
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    warning("Loom specification version 3 or greater detected!")
+  } else {
+    warning("Loom specification version 2 or smaller detected!")
+  }
   return (H5File$new(file.path, mode=mode))
 }
 
@@ -1733,7 +1804,7 @@ get_dgem<-function(loom) {
 #'@return The default embedding.
 #'@export
 get_default_embedding<-function(loom) {
-  return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]])
+  return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]][])
 }
 
 #' @title get_embeddings
