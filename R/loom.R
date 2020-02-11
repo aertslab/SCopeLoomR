@@ -111,8 +111,15 @@ get_global_loom_spec_version<-function(loom) {
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 3 but it's different (",loom.spec.version,") !"))
     return (loom.spec.version)
   } else {
-    loom.spec.version = h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
-    if(loom.spec.version >= 2)
+    if(GA_LOOM_SPEC_VERSION %in% list.attributes(object = loom)) {
+      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
+    } else {
+      h5attr(x = loom, which = GA_LOOM_SPEC_VERSION) <- "2.0.0"
+      warning("LOOM_SPEC_VERSION attribute not detected. This loom file has probably been generated SCopeLoomR version < 0.6.0. Adding this attribute to the loom file to follow Loompy standards...")
+      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
+      warning("Done")
+    }
+    if(loom.spec.version > 2)
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 2 but it's different (",loom.spec.version,") !"))
     return (loom.spec.version)
   }
