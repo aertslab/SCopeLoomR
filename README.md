@@ -1,4 +1,4 @@
-# SCopeLoomR v0.6.1
+# SCopeLoomR v0.6.2
 An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to read data from .loom files.
 
 ## Requirements
@@ -33,6 +33,12 @@ You can find a tutorial on how to create .loom files and read data from them in 
 ## Version History
 
 February, 2020
+
+* Version 0.6.2
+    * Fix bug datasets should not use scalar space
+    * Fix bug global_meta_data_exists to work for loom v3 specs
+    * Fix bug conditional statement to create attrs for loom v3 specs
+    * Fix bug use json value in init_global_meta_data
 
 * Version 0.6.1
     * Fix bug LOOM_SPEC_VERSION attribute does not exist for old Loom files generated with SCopeLoomR version < 0.6.0.

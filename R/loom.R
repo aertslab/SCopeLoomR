@@ -130,7 +130,7 @@ add_global_loom_spec_version<-function(loom, loom.spec.version) {
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = "foo", dtype = dtype)
   if(loom.spec.version == 3) {
-    loom$create_dataset(name = paste0("attrs/", GA_LOOM_SPEC_VERSION), robj = "3.0.0", dtype = dtype, space = get_dspace(x = "scalar"))
+    loom$create_dataset(name = paste0("attrs/", GA_LOOM_SPEC_VERSION), robj = "3.0.0", dtype = dtype)
   } else if(loom.spec.version == 2) {
     loom$create_attr(attr_name = GA_LOOM_SPEC_VERSION, robj = "2.0.0", dtype = dtype, space = get_dspace(x = "scalar")) 
   } else {
@@ -359,7 +359,7 @@ check_global_meta_data<-function(loom) {
 #'@description  Check if global MetaData attribute exists for the given loom.
 #'@param loom   The loom file handler.
 global_meta_data_exists<-function(loom) {
-  return (loom$attr_exists(attr_name = GA_METADATA_NAME))
+  return (loom$attr_exists(attr_name = GA_METADATA_NAME) | loom$link_exists(name = paste0("attrs/", GA_METADATA_NAME)))
 }
 
 load_global_meta_data <- function(meta.data) {
@@ -414,9 +414,11 @@ init_global_meta_data<-function(loom, loom.spec.version) {
   if(GA_METADATA_NAME %in% list.attributes(object = loom))
     stop("The MetaData global attribute already exists.")
   if(loom.spec.version < 3) {
-    meta.data<-compress_gzb64(c = as.character(meta.data.json))
+    md<-compress_gzb64(c = as.character(meta.data.json))
+  } else {
+    md<-meta.data.json
   }
-  add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(meta.data))
+  add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(x = md))
 }
 
 #'@title clear_global_meta_data
@@ -1234,7 +1236,7 @@ add_global_attr<-function(loom
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
-    loom$create_dataset(name = paste0("attrs/", key), robj = value, dtype = dtype, space = get_dspace(x = "scalar"))
+    loom$create_dataset(name = paste0("attrs/", key), robj = value, dtype = dtype)
   } else {
     loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar")) 
   }
@@ -1475,12 +1477,12 @@ build_loom<-function(file.name
   tryCatch({
     # global attrs
     print("Adding global attributes...")
-    if(loom.spec.version > 3) {
+    if(loom.spec.version > 2) {
       loom$create_group("attrs")
     }
     # Add LOOM_SPEC_VERSION
     add_global_loom_spec_version(loom, loom.spec.version = loom.spec.version)
-    
+
     # title
     if(!is.null(title)) {
       add_global_attr(loom = loom, key = GA_TITLE_NAME, value = as.character(title))
@@ -1493,12 +1495,10 @@ build_loom<-function(file.name
     add_global_attr(loom = loom, key = GA_CREATION_DATE_NAME, value = as.character(Sys.time()))
     # R version
     add_global_attr(loom = loom, key = GA_R_VERSION_NAME, value = as.character(R.version.string))
-    
     cn<-colnames(dgem)
     rn<-row.names(dgem)
     # global MetaData attribute
     init_global_meta_data(loom = loom, loom.spec.version = loom.spec.version)
-    
     # Add hierarchy levels
     if(!is.null(hierarchy)) {
       add_hierarchy(loom = loom, hierarchy = hierarchy)
