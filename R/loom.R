@@ -1389,9 +1389,11 @@ add_matrix<-function(loom
     stop("Please make sure that the expression matrix (dgem) does not contain any NA values.")
   }
   
+  dtype<-get_dtype(x = dgem[1, 1])
+  # Remove row names and column names
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
-  dtype<-get_dtype(x = dgem[1, 1])
+  
   loom$create_dataset(
     name = 'matrix',
     dtype = dtype,
