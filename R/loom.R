@@ -119,7 +119,7 @@ get_global_loom_spec_version<-function(loom) {
       loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
       warning("Done")
     }
-    if(loom.spec.version > 2)
+    if(loom.spec.version >= 3)
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 2 but it's different (",loom.spec.version,") !"))
     return (loom.spec.version)
   }
@@ -130,7 +130,7 @@ add_global_loom_spec_version<-function(loom, loom.spec.version) {
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = "foo", dtype = dtype)
   if(loom.spec.version == 3) {
-    loom$create_dataset(name = paste0("attrs/", GA_LOOM_SPEC_VERSION), robj = "3.0.0", dtype = dtype)
+    loom$create_dataset(name = paste0("attrs/", GA_LOOM_SPEC_VERSION), robj = "3.0.0", dtype = dtype, space = get_dspace(x = "scalar"), chunk_dims = NULL)
   } else if(loom.spec.version == 2) {
     loom$create_attr(attr_name = GA_LOOM_SPEC_VERSION, robj = "2.0.0", dtype = dtype, space = get_dspace(x = "scalar")) 
   } else {
@@ -1236,7 +1236,7 @@ add_global_attr<-function(loom
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
-    loom$create_dataset(name = paste0("attrs/", key), robj = value, dtype = dtype)
+    loom$create_dataset(name = paste0("attrs/", key), robj = value, dtype = dtype, space = get_dspace(x = "scalar"), chunk_dims = NULL)
   } else {
     loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar")) 
   }
@@ -1718,7 +1718,7 @@ get_dtype<-function(x) {
 #'@return The corresponding HDF5 dataspace interface object.
 get_dspace<-function(x) {
   dspaces<-c("scalar", "simple")
-  if(!("scalar" %in% dspaces)) {
+  if(!(x %in% dspaces)) {
     stop(paste("Wrong dspace. Choose either scalar or simple."))
   }
   return (H5S$new(type = x, dims = NULL, maxdims = NULL))
