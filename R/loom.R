@@ -392,8 +392,12 @@ get_global_meta_data<-function(loom) {
 #'@param meta.data.json The meta data stored as a json string.
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
-  compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-  update_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    meta.data.json <- as.character(meta.data.json)
+  } else {
+    meta.data.json <- compress_gzb64(c = as.character(meta.data.json))
+  }
+  update_global_attr(loom = loom, key = GA_METADATA_NAME, value = meta.data.json)
 }
 
 #'@title init_global_meta_data
@@ -1602,6 +1606,33 @@ open_loom<-function(file.path, mode="r+") {
     warning("Loom specification version 2 or smaller detected!")
   }
   return (H5File$new(file.path, mode=mode))
+}
+
+convert_to_loom_v3_spec <- function(loom) {
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    stop("The given loom is already in Loom version 3 specification.")
+  }
+  gmd<-get_global_meta_data(loom = loom)
+  # Update loom spec version to 3
+  print("Updating to Loom v3 specification...")
+  if(loom$attr_exists(attr_name = GA_LOOM_SPEC_VERSION)) {
+    remove_global_attr(loom = loom, GA_LOOM_SPEC_VERSION) 
+  }
+  # Create the global attrs group
+  loom$create_group("attrs")
+  add_global_loom_spec_version(loom, loom.spec.version = 3)
+  for(global_attr_key in list.attributes(object = loom)) {
+    print(paste0("Converting ", global_attr_key, " global attribute to Loom v3 specification..."))
+    if(global_attr_key == "MetaData") {
+      value <- rjson::toJSON(x = gmd)
+    } else {
+      value <- h5attr(x = loom, which = global_attr_key)
+    }
+    add_global_attr(loom = loom, key = global_attr_key, value = value)
+    loom$attr_delete(attr_name = global_attr_key)
+  }
+  flush(loom = loom)
+  print("Done")
 }
 
 
