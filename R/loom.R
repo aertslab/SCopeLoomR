@@ -1608,6 +1608,11 @@ open_loom<-function(file.path, mode="r+") {
   return (H5File$new(file.path, mode=mode))
 }
 
+#'@title convert_to_loom_v3_spec
+#'@description Convert a .loom file to version 3 specification of the Loom format
+#'@param loom The loom file handler.
+#'@return A loom file handler
+#'@export
 convert_to_loom_v3_spec <- function(loom) {
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
     stop("The given loom is already in Loom version 3 specification.")
@@ -1632,6 +1637,7 @@ convert_to_loom_v3_spec <- function(loom) {
     loom$attr_delete(attr_name = global_attr_key)
   }
   flush(loom = loom)
+  return (loom)
   print("Done")
 }
 
