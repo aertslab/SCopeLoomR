@@ -295,6 +295,79 @@ add_global_md_clustering<-function(loom
   flush(loom = loom)
 }
 
+#'@title update_cluster_descriptions_by_cluster_annotation_mapping_df
+#'@description  Update the cluster descriptions of the clusters of the given clustering_name
+#'@param loom                                   The loom file handler.
+#'@param clustering.name                        The name of the clustering.
+#'@param annotation.df                          The data.frame containing the cluster annotatiion mapping
+#'@param annotation.df.cluster.id.column.name   The column name of the given annotation.df containing the cluster ID values
+#'@param annotation.df.annotation.column.name   The column name of the given annotation.df containing the annotation values.
+#'@param in.place                               If true update the given loom, otherwise return the update global meta data.
+#'@export
+update_cluster_descriptions_by_cluster_annotation_mapping_df<-function(
+  loom,
+  clustering.name,
+  annotation.df = NULL,
+  annotation.df.cluster.id.column.name = NULL,
+  annotation.df.annotation.column.name = NULL,
+  in.place = TRUE
+) {
+  if(loom$mode=="r") stop("File open as read-only.")
+  
+  gmd<-get_global_meta_data(loom = loom)
+  gmd_clusterings<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
+  c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clustering <- list.filter(gmd_clusterings, name == clustering.name)[[1]]
+  gmd_clustering_idx <- list.findi(gmd_clusterings, name == clustering.name)[[1]]
+  if(is.null(x = annotation.df) 
+     | is.null(x = annotation.df.cluster.id.column.name) 
+     | is.null(x = annotation.df.annotation.column.name)) {
+    cluster_ids <- do.call(what = "c", args = lapply(gmd_clustering$clusters, function(x) {
+      x$id
+    }))
+    reset <- TRUE
+  } else {
+    if(!(annotation.df.cluster.id.column.name %in% colnames(x = annotation.df))) {
+      stop(paste0("The given '",annotation.df.cluster.id.column.name,"' does not exist in the given annotation.df."))
+    }
+    if(!(annotation.df.annotation.column.name %in% colnames(x = annotation.df))) {
+      stop(paste0("The given '",annotation.df.annotation.column.name,"' does not exist in the given annotation.df."))
+    }
+    annotation_names <- annotation[[annotation.df.annotation.column.name]]
+    cluster_ids <- annotation[[annotation.df.cluster.id.column.name]]
+    annotation_as_named_list <- setNames(object = annotation_names, nm = cluster_ids)
+    reset <- FALSE
+  }
+  clusters<-lapply(X = cluster_ids, FUN = function(cluster.id) {
+    cluster <- list.filter(gmd_clustering$clusters, id == cluster.id)[[1]]
+    description<-paste("NDA - Cluster", cluster$id)
+    if(!reset) {
+      # If annotation for the current cluster not empty then add
+      # Convert from factor to character vector to be used with nchar
+      d<-as.character(x = annotation_as_named_list[cluster.id]) 
+      
+      if(length(d) > 1) {
+        stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
+      }
+      if(nchar(d)>0) {
+        description<-paste0(d, " (",cluster.id,")")
+      }
+    }
+    return (list(id = cluster.id
+                 , description = description))
+  })
+  gmd_clustering$clusters <- clusters
+  c[[gmd_clustering_idx]]<-gmd_clustering
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-NULL
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-c
+  if(in.place) {
+    update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
+    flush(loom = loom)
+  } else {
+    return (gmd)
+  }
+}
+
 #'@title add_global_md_regulon_thresholds
 #'@description  Add the regulon thresholds annotation to the global MetaData attribute.
 #'@param loom                           The loom file handler.
@@ -1164,6 +1237,37 @@ add_fbgn<-function(loom
   colnames(tmp)<-RA_GENE_NAME
   genes<-merge(x = tmp, y = fbgn.gn.mapping, by = RA_GENE_NAME)
   add_row_attr(loom = loom, key = "FBgn", value = genes$FBgn)
+}
+
+###########################
+# Col data functions      #
+###########################
+
+#'@title add_annotation_by_cluster_annotation_mapping_df
+#'@description Add annotation as column attribute using cluster annotation mapping data.frame
+#'@param loom                                   The loom file handler.
+#'@param key                                    The name of the annotation
+#'@param clustering.name                        The name of the clustering.
+#'@param annotation.df                          The data.frame containing the cluster annotatiion mapping
+#'@param annotation.df.cluster.id.column.name   The column name of the given annotation.df containing the cluster ID values
+#'@param annotation.df.annotation.column.name   The column name of the given annotation.df containing the annotation values.
+#'@export
+add_annotation_by_cluster_annotation_mapping_df<-function(
+  loom,
+  key,
+  clustering.name,
+  annotation.df = NULL,
+  annotation.df.cluster.id.column.name = NULL,
+  annotation.df.annotation.column.name = NULL
+) {
+  gmd_clustering <- list.filter(gmd_clusterings, name == clustering.name)[[1]]
+  ca_clusterings <- get_col_attr_by_key(loom = loom, key = "Clusterings")
+  cluster_annotation <- plyr::mapvalues(
+    ca_clusterings[, as.character(x = gmd_clustering$id)],
+    from = as.character(x = annotation[[annotation.df.cluster.id.column.name]]),
+    to = annotation[[annotation.df.annotation.column.name]]
+  )
+  add_col_attr(loom = loom, key = key, value = cluster_annotation, as.annotation = TRUE)
 }
 
 #####################
