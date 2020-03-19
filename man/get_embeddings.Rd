@@ -7,7 +7,7 @@
 get_embeddings(loom)
 }
 \arguments{
-\item{loom}{.loom file name}
+\item{loom}{The loom file handler.}
 }
 \value{
 List with the embeddings (each of them as data.frame)

@@ -93,7 +93,17 @@ add_hierarchy<-function(loom, hierarchy, overwrite = FALSE) {
 #'@param loom   The loom file handler.
 #'@export
 hierarchy_exists<-function(loom) {
-  return (loom$attr_exists(attr_name = "SCopeTreeL1") | loom$attr_exists(attr_name = "SCopeTreeL2") | loom$attr_exists(attr_name = "SCopeTreeL3"))
+  if(is_loom_spec_version_3_or_greater(loom = loom))
+    return(
+      loom$link_exists(name = paste0("attrs/", "SCopeTreeL1"))
+      | loom$link_exists(name = paste0("attrs/", "SCopeTreeL2"))
+      | loom$link_exists(name = paste0("attrs/", "SCopeTreeL3"))
+    )
+  return (
+    loom$attr_exists(attr_name = "SCopeTreeL1") 
+    | loom$attr_exists(attr_name = "SCopeTreeL2") 
+    | loom$attr_exists(attr_name = "SCopeTreeL3")
+    )
 }
 
 ##############################
@@ -317,7 +327,7 @@ update_cluster_descriptions_by_cluster_annotation_mapping_df<-function(
   gmd<-get_global_meta_data(loom = loom)
   gmd_clusterings<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
   c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
-  gmd_clustering <- list.filter(gmd_clusterings, name == clustering.name)[[1]]
+  gmd_clustering <- rlist::list.filter(gmd_clusterings, name == clustering.name)[[1]]
   gmd_clustering_idx <- list.findi(gmd_clusterings, name == clustering.name)[[1]]
   if(is.null(x = annotation.df) 
      | is.null(x = annotation.df.cluster.id.column.name) 
@@ -339,7 +349,7 @@ update_cluster_descriptions_by_cluster_annotation_mapping_df<-function(
     reset <- FALSE
   }
   clusters<-lapply(X = cluster_ids, FUN = function(cluster.id) {
-    cluster <- list.filter(gmd_clustering$clusters, id == cluster.id)[[1]]
+    cluster <- rlist::list.filter(gmd_clustering$clusters, id == cluster.id)[[1]]
     description<-paste("NDA - Cluster", cluster$id)
     if(!reset) {
       # If annotation for the current cluster not empty then add
@@ -1260,7 +1270,9 @@ add_annotation_by_cluster_annotation_mapping_df<-function(
   annotation.df.cluster.id.column.name = NULL,
   annotation.df.annotation.column.name = NULL
 ) {
-  gmd_clustering <- list.filter(gmd_clusterings, name == clustering.name)[[1]]
+  md <- get_global_meta_data(loom = loom)
+  gmd_clusterings <- md[["clusterings"]]
+  gmd_clustering <- rlist::list.filter(gmd_clusterings, name == clustering.name)[[1]]
   ca_clusterings <- get_col_attr_by_key(loom = loom, key = "Clusterings")
   cluster_annotation <- plyr::mapvalues(
     ca_clusterings[, as.character(x = gmd_clustering$id)],
@@ -1948,6 +1960,16 @@ get_dgem<-function(loom) {
   return (dgem)
 }
 
+#'@title get_embedding_by_name
+#'@description Get the embedding with the given embedding.name in the given .loom.
+#'@param loom           The loom file handler.
+#'@param embedding.name The name of the given embedding to retrieve
+#'@return The embedding with the given embedding.name.
+#'@export
+get_embedding_by_name <- function(loom, embedding.name) {
+  return (get_embeddings(loom = loom)[[embedding.name]])
+}
+
 #'@title get_default_embedding
 #'@description Get the default embedding for the given .loom.
 #'@param loom The loom file handler.
@@ -1959,7 +1981,7 @@ get_default_embedding<-function(loom) {
 
 #' @title get_embeddings
 #' @description Get embeddings (e.g. t-SNE, UMAP) from the given loom file
-#' @param loom .loom file name
+#' @param loom The loom file handler.
 #' @return List with the embeddings (each of them as data.frame)
 #' @examples
 #' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
