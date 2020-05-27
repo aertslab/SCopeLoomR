@@ -267,29 +267,34 @@ add_global_md_clustering<-function(loom
   }
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
-  if(is.factor(clusters)) {
-    unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
-  } else {
-    unique.clusters<-sort(unique(clusters), decreasing = F)
-  }
-  
-  clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
-    description<-paste("NDA - Cluster", cluster.id)
+  unique.clusters <- get_unique_clusters(clusters = clusters)
+
+  clusters<-lapply(X = seq_along(along.with = unique.clusters), FUN = function(cluster.idx) {
+    cluster.id <- unique.clusters[[cluster.idx]]
+    if(is.numeric(x = cluster.id)) {
+      description<-paste("NDA - Cluster", cluster.id)
+    } else if(is.character(x = cluster.id)) {
+      cluster.id <- cluster.idx - 1
+      description <- cluster.id
+    } else {
+      stop("Cluster labels are required to be of class character or numeric.")
+    }
     if(!is.null(annotation)) {
       # Force to have the same order
-      annotation<-annotation[names(clusters)]
+      annotation<<-annotation[names(x = clusters)]
       # If annotation for the current cluster not empty then add
       # d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
       # Convert from factor to character vector to be used with nchar
-      d<-as.character(unique(annotation[clusters == cluster.id])) 
+      d<<-as.character(x = unique(x = annotation[clusters == cluster.id])) 
       
-      if(length(d) > 1) {
+      if(length(x = d) > 1) {
         stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
       }
-      if(nchar(d)>0) {
+      if(nchar(x = d)>0) {
         description<-paste0(d, " (",cluster.id,")")
       }
     }
+    # IDs should start from 0
     return (list(id = cluster.id
                  , description = description))
   })
@@ -707,6 +712,14 @@ create_trajectory<-function(edges, coordinates) {
 # Clusterings functions #
 #########################
 
+get_unique_clusters <- function(clusters) {
+  if(is.factor(x = clusters)) {
+    return (sort(x = levels(x = clusters), decreasing = F))
+  } else {
+    return (sort(x = unique(x = clusters), decreasing = F))
+  }
+}
+
 #'@title get_seurat_clustering_resolutions
 #'@description Get list of all computed clusterings resolutions in the given seurat object.
 #'@param seurat A Seurat object.
@@ -836,7 +849,12 @@ add_seurat_clustering<-function(loom
         }
       }
       flush(loom = loom)
-      cluster.annotation<-create_cluster_annotation(clusters = cluster.ids, cluster.meta.data.df = a, cluster.id.cn = ac.id.cn,  cluster.description.cn = ac.description.cn)
+      cluster.annotation<-create_cluster_annotation(
+        clusters = cluster.ids,
+        cluster.meta.data.df = a,
+        cluster.id.cn = ac.id.cn, 
+        cluster.description.cn = ac.description.cn
+      )
       clid<-add_annotated_clustering(loom = loom
                                    , group = "Seurat"
                                    , name = paste("Seurat,", paste0(seurat.clustering.prefix, res))
@@ -913,24 +931,28 @@ create_cluster_annotation<-function(clusters
                                   , cluster.meta.data.df = NULL
                                   , cluster.id.cn =  NULL
                                   , cluster.description.cn = NULL) {
-  if(is.factor(clusters)) {
-    unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
-  } else {
-    unique.clusters<-sort(unique(clusters), decreasing = F)
-  }
-  annotation<-setNames(object = rep(NA, length(clusters)), nm = names(clusters))
-  for(cluster in unique.clusters) {
-    description<-paste0("NDA - Cluster ", cluster)
-    if(!is.null(cluster.meta.data.df)) {
+  unique.clusters <- get_unique_clusters(clusters = clusters)
+  annotation<-setNames(object = rep(NA, length(x = clusters)), nm = names(x = clusters))
+
+  for(cluster.idx in seq_along(along.with = unique.clusters)) {
+    cluster.id <- unique.clusters[[cluster.idx]]
+    if(is.numeric(x = cluster.id)) {
+      description<-paste("NDA - Cluster", cluster.id)
+    } else if(is.character(x = cluster.id)) {
+      description<-cluster.id
+    } else {
+      stop("Cluster labels are required to be of class character or numeric.")
+    }
+    if(!is.null(x = cluster.meta.data.df)) {
       if(!(cluster.description.cn %in% colnames(cluster.meta.data.df))) {
         stop(paste0("The given column ",cluster.description.cn, " does not exists in the annotation provided."))
       }
-      description<-as.vector(unlist(cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]))
+      description<-as.vector(unlist(x = cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]))
     }
-    annotation[as.vector(unlist(clusters)) == cluster]<-description
+    annotation[as.vector(x = unlist(x = clusters)) == cluster.id]<-description
   }
   annotation<-factor(x = annotation)
-  names(x = annotation)<-names(clusters)
+  names(x = annotation)<-names(x = clusters)
   return (annotation)
 }
 
@@ -961,6 +983,24 @@ add_clustering<-function(loom
                            , overwrite.default = overwrite.default)
 }
 
+clusters_as_factor_ids<-function(clusters) {
+  # Convert character clusters to to numeric clusters
+  unique.clusters <- get_unique_clusters(clusters = clusters)
+  if(any(is.character(x = unique.clusters)))
+    return (
+      # IDs should start from 0
+      setNames(
+        object = factor(x = mapvalues(
+          x = clusters,
+          from = unique.clusters,
+          to = seq_along(along.with = unique.clusters)-1
+        )),
+        nm = names(x = clusters)
+      )
+    )
+  return (clusters)
+}
+
 #'@title add_annotated_clustering
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
 #'@param loom                 The loom file handler.
@@ -981,24 +1021,43 @@ add_annotated_clustering<-function(loom
   if(loom$mode=="r") stop("File open as read-only.")
   
   id<-0
-  if(length(unique(clusters)) == length(unique(annotation))) {
+  if(length(x = unique(x = clusters)) == length(x = unique(x = annotation))) {
     # Make sure the order are the same
-    annotation<-annotation[names(clusters)]
+    annotation<-annotation[names(x = clusters)]
   } else {
     # Does not seem that cluster IDs and cluster annotation correspond
     # Remap to have the same number of unique IDs as the number of unique annotation
     library(plyr)
-    clusters<-factor(x = as.integer(mapvalues(annotation, from = unique(x = annotation), to = seq_along(along.with = unique(x = annotation))-1)))
-    names(clusters)<-names(annotation)
+    clusters<-factor(x = mapvalues(
+      x = annotation,
+      from = unique(x = annotation),
+      to = seq_along(along.with = unique(x = annotation))-1
+    ))
+    names(x = clusters)<-names(x = annotation)
   }
-  cell.ids<-get_cell_ids(loom = loom)
+  
+  # Convert clusters to numeric values if needed clusters are of class character
+  # This is required since the column attribute Clusterings expects numeric values
+  clusters_as_factor_ids <- clusters_as_factor_ids(clusters = clusters)
+  
   # Check if all the cells are present in the given clusters
-  n.mismatches<-sum(!(names(clusters) %in% cell.ids))
+  cell.ids<-get_cell_ids(loom = loom)
+  n.mismatches<-sum(!(names(x = clusters) %in% cell.ids))
   if(n.mismatches > 0) {
     stop(paste0("Mismatches detected between the cell IDs (",n.mismatches,") in the given clusters object and in CellID column attribute of the .loom. Please do not use special characters for cell IDs except '_'."))
   }
   # Order the clusters in the order defined CellID column attribute
-  clusters<-clusters[cell.ids]
+  clusters <- clusters[cell.ids]
+  clusters_as_factor_ids <- clusters_as_factor_ids[cell.ids]
+  # Convert clusters_as_factor_ids to integer (not numeric since this will be interpreted as float) otherwise H5T_ENUM will be used leading to 
+  # Datatype: H5T_COMPOUND {
+  #   H5T_ENUM {
+  #     H5T_STD_U8LE;
+  #     "0"                1;
+  #     "1"                2;
+  #   } "0" : 0;
+  # }
+  clusters_as_numeric_ids <- as.integer(x = as.character(x = clusters_as_factor_ids))
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
@@ -1010,16 +1069,16 @@ add_annotated_clustering<-function(loom
           warning("A default clustering has already been set. The current default clustering will be overwritten.")
           # Check for each if it exists. If it exists update otherwise create new.
           if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_ID)) {
-            update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+            update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = clusters_as_numeric_ids)
           } else {
-            add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+            add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = clusters_as_numeric_ids)
           }
           # Check if annotation is not null
           if(!is.null(x = annotation)) {
             if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME))
               update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
             else
-              add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.integer(as.character(x = annotation)))
+              add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
           } else {
             # As we overwrite ClusterID and annotation is null, if ClusterName is already present, to be consistent we should delete it.
             if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME)) {
@@ -1031,7 +1090,7 @@ add_annotated_clustering<-function(loom
         }
       }
     } else {
-      add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+      add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = clusters_as_numeric_ids)
       add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
     }
   }
@@ -1040,13 +1099,13 @@ add_annotated_clustering<-function(loom
     print(paste(CA_CLUSTERINGS_NAME, "already exists..."))
     ca.clusterings<-get_clusterings(loom = loom)
     # Set the clustering id
-    id<-ncol(ca.clusterings) # n clusterings (start at 0)
-    clustering<-data.frame("x" = as.integer(as.character(x = clusters)))
+    id<-ncol(x = ca.clusterings) # n clusterings (start at 0)
+    clustering<-data.frame("x" = clusters_as_numeric_ids, stringsAsFactors = F)
     append_clustering_update_ca(loom = loom, clustering.id = id, clustering = clustering)
   } else {
     print(paste(CA_CLUSTERINGS_NAME, "created..."))
-    clustering<-data.frame("x" = as.integer(as.character(x = clusters)), stringsAsFactors = F)
-    colnames(clustering)<-as.character(id)
+    clustering<-data.frame("x" = clusters_as_numeric_ids, stringsAsFactors = F)
+    colnames(x = clustering)<-as.character(x = id)
     add_col_attr(loom = loom, key = CA_CLUSTERINGS_NAME, value = as.data.frame(x = clustering))
   }
   flush(loom = loom)
@@ -1056,7 +1115,7 @@ add_annotated_clustering<-function(loom
                            , id = id
                            , group = group
                            , name = name
-                           , clusters = clusters
+                           , clusters = clusters_as_factor_ids
                            , annotation = annotation)
   flush(loom = loom)
   return (id)
