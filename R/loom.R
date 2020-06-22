@@ -1808,8 +1808,8 @@ convert_to_loom_v3_spec <- function(loom) {
     } else {
       value <- h5attr(x = loom, which = global_attr_key)
     }
-    add_global_attr(loom = loom, key = global_attr_key, value = value)
     loom$attr_delete(attr_name = global_attr_key)
+    add_global_attr(loom = loom, key = global_attr_key, value = value)
   }
   flush(loom = loom)
   return (loom)
