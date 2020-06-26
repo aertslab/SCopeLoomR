@@ -2202,6 +2202,8 @@ get_cellAnnotation <- function(loom, annotCols=NULL)
 #' @title get_regulonsAuc
 #' @description Get AUCell matrix from the given loom file
 #' @param loom .loom file name
+#' @param attrName Type of regulon to retrieve; Usually 'MotifRegulonsAUC' for motif-based regulons, or 'TrackRegulonsAUC' for track-based (e.g. ChIP-seq) regulons. 
+#' (Might change according to the SCENIC/pySCENIC pipeline version and settings used).
 #' @param rows Type of data stored as rows (only for informative purposes) Default: "regulons"
 #' @param columns Type of data stored as columns (only for informative purposes) Default: "cells"
 #' @return AUC matrix in the slot \code{loom[["col_attrs"]][["RegulonsAUC"]][]}. 
@@ -2212,8 +2214,17 @@ get_cellAnnotation <- function(loom, annotCols=NULL)
 #' 
 #' regulonsAUC <- get_regulonsAuc(loom)
 #' @export
-get_regulonsAuc <- function(loom, rows="regulons", columns="cells") {
-  mtx <- loom[["col_attrs"]][["RegulonsAUC"]][]
+get_regulonsAuc <- function(loom, attrName="MotifRegulonsAUC", rows="regulons", columns="cells") {
+  if(!attrName %in% names(loom[["col_attrs"]]))
+  {
+    msg <- "The argument 'attrName' is not available in this loom file."
+    possibleValues <- grep("egulon", names(loom[["col_attrs"]]), value=T)
+    if(length(possibleValues)>0) msg <- c(msg, " Possible values include: ", paste(possibleValues, collapse=", "),".")
+    if(length(possibleValues)==0) msg <- c(msg, " The loom doesn't contain regulon information.")
+    stop(msg)
+  }
+  
+  mtx <- loom[["col_attrs"]][[attrName]][]
   rownames(mtx) <- get_cell_ids(loom)
   mtx <- t(mtx)
   names(dimnames(mtx)) <- c(rows, columns)
@@ -2225,10 +2236,11 @@ get_regulonsAuc <- function(loom, rows="regulons", columns="cells") {
   return(mtx)
 }
 
-
 #' @title get_regulons
 #' @description Get regulons from the given loom file
 #' @param loom .loom file name
+#' @param attrName Type of regulon to retrieve; Usually 'MotifRegulons' for motif-based regulons, or 'TrackRegulons' for track-based (e.g. ChIP-seq) regulons. 
+#' (Might change according to the SCENIC/pySCENIC pipeline version and settings used).
 #' @param tfAsName Whether to return only the TF name (calls \code{SCENIC::getTF()}), or the regulon name as stored in the loom file.
 #' @param tfSep Character used as separator for the TF name and extra values stored in the regulon name. To be passed to SCENIC::getTF()
 #' @return The regulons as incidence matrix or list.
@@ -2239,12 +2251,22 @@ get_regulonsAuc <- function(loom, rows="regulons", columns="cells") {
 #' regulons <- get_regulons(loom)
 #' head(regulons)
 #' @export
-get_regulons <- function(loom, tfAsName=TRUE, tfSep="_"){
-  incidMat <- loom[["row_attrs"]][["Regulons"]][] # incid mat
+get_regulons <- function(loom, attrName="MotifRegulons", tfAsName=TRUE, tfSep="_"){
+  if(!attrName %in% names(loom[["row_attrs"]]))
+  {
+    msg <- "The argument 'attrName' is not available in this loom file."
+    possibleValues <- grep("egulon", names(loom[["row_attrs"]]), value=T)
+    if(length(possibleValues)>0) msg <- c(msg, " Possible values include: ", paste(possibleValues, collapse=", "),".")
+    if(length(possibleValues)==0) msg <- c(msg, " The loom doesn't contain regulon information.")
+    stop(msg)
+  }
+  
+  incidMat <- loom[["row_attrs"]][[attrName]][] # incid mat
   rownames(incidMat) <- get_genes(loom)
   incidMat <- t(incidMat)
   
-  if(tfAsName) rownames(incidMat) <- SCENIC::getTF(rownames(incidMat), tfSep)
+  if(tfAsName) rownames(incidMat) <- sapply(strsplit(rownames(incidMat), paste0(tfSep, "\\(")), function(x) x[[1]])
+  # SCENIC::getTF(rownames(incidMat), tfSep)
   
   return(incidMat)
 }
