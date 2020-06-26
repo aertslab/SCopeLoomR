@@ -2330,3 +2330,67 @@ get_cluster_dgem_by_name<-function(loom
   return (dgem[, mask])
 }
 
+#'@title get_markers
+#'@description Get the cluster markers from a loom file.
+#'@param loom The loom file handler.
+#'@param resolutions Cluster resolutions to retrieve.
+#'@param nSignif Number of significant digits in the output.
+#'@param verbose Whether to show information messages.
+#'@return A list of data.frames containing the cluster markers, their p-value and Fold Change. The list names refer to the different resolutions for the clustering.
+#'@export
+get_markers <- function(loom, resolutions=NULL, nSignif=4, verbose=TRUE)
+{
+  rowAttrs <- loom[["row_attrs"]]
+  genes <- rowAttrs[["Gene"]][]; length(genes)
+  if(any(as.numeric(names(table(table(genes))))>1)) stop("Some gene names are duplicated")
+  
+  if(is.null(resolutions))
+  {
+    resolutions <- (1:(length(names(rowAttrs)[grep("ClusterMarkers", names(rowAttrs))])/3))-1
+    if(verbose) message("Using the following resolutions: ", paste(resolutions, collapse=", "))
+  }
+  
+  clMarkersList <- list()
+  for(i in resolutions)
+  {
+    clName <- paste0("ClusterMarkers_",i) 
+    
+    isMarker <- rowAttrs[[clName]][]
+    rownames(isMarker) <- genes
+    markersMat <- igraph::as_edgelist(igraph::graph_from_incidence_matrix(isMarker))
+    colnames(markersMat) <- c("gene", "cl")
+    markers.df <- data.frame(markersMat, stringsAsFactors=F); rm(markersMat)
+    rownames(markers.df) <- paste0(markers.df$gene, "--", markers.df$cl)
+    
+    pVal.im <- data.frame(rowAttrs[[paste0(clName,"_pval")]][])
+    pVal.im$gene <- genes
+    pVal <- tidyr::gather(data=pVal.im, colid, value, -gene)  # pVal %>% pivot_longer(cols=gene, names_to = "pVal", values_to = "value")
+    colnames(pVal) <- c("gene", "cluster", "pVal")
+    pVal$cluster <- gsub("X", "", pVal$cluster)
+    rownames(pVal) <- paste0(pVal$gene, "--", pVal$cluster)
+    head(pVal)
+    
+    alFC.im <- data.frame(rowAttrs[[paste0(clName,"_avg_logFC")]][])
+    alFC.im$gene <- genes
+    alFC <- tidyr::gather(data=alFC.im, colid, value, -gene)  # alFC %>% pivot_longer(cols=gene, names_to = "alFC", values_to = "value")
+    colnames(alFC) <- c("gene", "cluster", "alFC")
+    alFC$cluster <- gsub("X", "", alFC$cluster)
+    rownames(alFC) <- paste0(alFC$gene, "--", alFC$cluster)
+    head(alFC)
+    
+    markers.df$pval <- signif(pVal[rownames(markers.df),"pVal"], nSignif)
+    markers.df$avg_logFC <- signif(alFC[rownames(markers.df),"alFC"], nSignif)
+    
+    rownames(markers.df) <- NULL
+    clMarkersList[[clName]] <- markers.df
+    
+    rm(isMarker)
+    rm(markers.df)
+    rm(alFC)
+    rm(pVal)
+    rm(clName)
+    rm(i)
+  }
+  
+  return(clMarkersList)
+}
