@@ -31,6 +31,7 @@ GA_TITLE_NAME<-"title"
 GA_TITLE_GENOME<-"Genome"
 GA_CREATION_DATE_NAME<-"CreationDate"
 GA_R_VERSION_NAME<-"RVersion"
+GA_LOOM_SPEC_VERSION<-"LOOM_SPEC_VERSION"
 
 # Miscellaneous
 BASE64_PATTERN<-"^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$"
@@ -92,12 +93,60 @@ add_hierarchy<-function(loom, hierarchy, overwrite = FALSE) {
 #'@param loom   The loom file handler.
 #'@export
 hierarchy_exists<-function(loom) {
-  return (loom$attr_exists(attr_name = "SCopeTreeL1") | loom$attr_exists(attr_name = "SCopeTreeL2") | loom$attr_exists(attr_name = "SCopeTreeL3"))
+  if(is_loom_spec_version_3_or_greater(loom = loom))
+    return(
+      loom$link_exists(name = paste0("attrs/", "SCopeTreeL1"))
+      | loom$link_exists(name = paste0("attrs/", "SCopeTreeL2"))
+      | loom$link_exists(name = paste0("attrs/", "SCopeTreeL3"))
+    )
+  return (
+    loom$attr_exists(attr_name = "SCopeTreeL1") 
+    | loom$attr_exists(attr_name = "SCopeTreeL2") 
+    | loom$attr_exists(attr_name = "SCopeTreeL3")
+    )
 }
 
 ##############################
 # Global Meta data functions #
 ##############################
+
+is_loom_spec_version_3_or_greater <- function(loom) {
+  return (get_global_loom_spec_version(loom = loom) >= 3)
+}
+
+get_global_loom_spec_version<-function(loom) {
+  if(loom$link_exists(name = "attrs")) {
+    loom.spec.version <- loom[["attrs"]][[GA_LOOM_SPEC_VERSION]][]
+    if(loom.spec.version < 3)
+      stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 3 but it's different (",loom.spec.version,") !"))
+    return (loom.spec.version)
+  } else {
+    if(GA_LOOM_SPEC_VERSION %in% list.attributes(object = loom)) {
+      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
+    } else {
+      h5attr(x = loom, which = GA_LOOM_SPEC_VERSION) <- "2.0.0"
+      warning("LOOM_SPEC_VERSION attribute not detected. This loom file has probably been generated SCopeLoomR version < 0.6.0. Adding this attribute to the loom file to follow Loompy standards...")
+      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
+      warning("Done")
+    }
+    if(loom.spec.version >= 3)
+      stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 2 but it's different (",loom.spec.version,") !"))
+    return (loom.spec.version)
+  }
+}
+
+add_global_loom_spec_version<-function(loom, loom.spec.version) {
+  dtype<-guess_dtype(x = "foo")
+  # Encode character vector to UTF-8
+  dtype<-hdf5_utf8_encode(value = "foo", dtype = dtype)
+  if(loom.spec.version == 3) {
+    loom$create_dataset(name = paste0("attrs/", GA_LOOM_SPEC_VERSION), robj = "3.0.0", dtype = dtype, space = get_dspace(x = "scalar"), chunk_dims = NULL)
+  } else if(loom.spec.version == 2) {
+    loom$create_attr(attr_name = GA_LOOM_SPEC_VERSION, robj = "2.0.0", dtype = dtype, space = get_dspace(x = "scalar")) 
+  } else {
+    stop("Invalid loom.spec.version!")
+  }
+}
 
 #'@title add_global_md_metric
 #'@description  Add the metric with the given name to the global MetaData attribute.
@@ -218,29 +267,34 @@ add_global_md_clustering<-function(loom
   }
   gmd<-get_global_meta_data(loom = loom)
   c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
-  if(is.factor(clusters)) {
-    unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
-  } else {
-    unique.clusters<-sort(unique(clusters), decreasing = F)
-  }
-  
-  clusters<-lapply(X = unique.clusters, FUN = function(cluster.id) {
-    description<-paste("NDA - Cluster", cluster.id)
+  unique.clusters <- get_unique_clusters(clusters = clusters)
+
+  clusters<-lapply(X = seq_along(along.with = unique.clusters), FUN = function(cluster.idx) {
+    cluster.id <- unique.clusters[[cluster.idx]]
+    if(is.numeric(x = cluster.id)) {
+      description<-paste("NDA - Cluster", cluster.id)
+    } else if(is.character(x = cluster.id)) {
+      cluster.id <- cluster.idx - 1
+      description <- cluster.id
+    } else {
+      stop("Cluster labels are required to be of class character or numeric.")
+    }
     if(!is.null(annotation)) {
       # Force to have the same order
-      annotation<-annotation[names(clusters)]
+      annotation<<-annotation[names(x = clusters)]
       # If annotation for the current cluster not empty then add
       # d<-annotation[annotation[[annotation.cluster.id.cl]] == cluster.id, annotation.cluster.description.cl]
       # Convert from factor to character vector to be used with nchar
-      d<-as.character(unique(annotation[clusters == cluster.id])) 
+      d<<-as.character(x = unique(x = annotation[clusters == cluster.id])) 
       
-      if(length(d) > 1) {
+      if(length(x = d) > 1) {
         stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
       }
-      if(nchar(d)>0) {
+      if(nchar(x = d)>0) {
         description<-paste0(d, " (",cluster.id,")")
       }
     }
+    # IDs should start from 0
     return (list(id = cluster.id
                  , description = description))
   })
@@ -254,6 +308,79 @@ add_global_md_clustering<-function(loom
   gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-c
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
   flush(loom = loom)
+}
+
+#'@title update_cluster_descriptions_by_cluster_annotation_mapping_df
+#'@description  Update the cluster descriptions of the clusters of the given clustering_name
+#'@param loom                                   The loom file handler.
+#'@param clustering.name                        The name of the clustering.
+#'@param annotation.df                          The data.frame containing the cluster annotatiion mapping
+#'@param annotation.df.cluster.id.column.name   The column name of the given annotation.df containing the cluster ID values
+#'@param annotation.df.annotation.column.name   The column name of the given annotation.df containing the annotation values.
+#'@param in.place                               If true update the given loom, otherwise return the update global meta data.
+#'@export
+update_cluster_descriptions_by_cluster_annotation_mapping_df<-function(
+  loom,
+  clustering.name,
+  annotation.df = NULL,
+  annotation.df.cluster.id.column.name = NULL,
+  annotation.df.annotation.column.name = NULL,
+  in.place = TRUE
+) {
+  if(loom$mode=="r") stop("File open as read-only.")
+  
+  gmd<-get_global_meta_data(loom = loom)
+  gmd_clusterings<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
+  c<-gmd[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clustering <- rlist::list.filter(gmd_clusterings, name == clustering.name)[[1]]
+  gmd_clustering_idx <- list.findi(gmd_clusterings, name == clustering.name)[[1]]
+  if(is.null(x = annotation.df) 
+     | is.null(x = annotation.df.cluster.id.column.name) 
+     | is.null(x = annotation.df.annotation.column.name)) {
+    cluster_ids <- do.call(what = "c", args = lapply(gmd_clustering$clusters, function(x) {
+      x$id
+    }))
+    reset <- TRUE
+  } else {
+    if(!(annotation.df.cluster.id.column.name %in% colnames(x = annotation.df))) {
+      stop(paste0("The given '",annotation.df.cluster.id.column.name,"' does not exist in the given annotation.df."))
+    }
+    if(!(annotation.df.annotation.column.name %in% colnames(x = annotation.df))) {
+      stop(paste0("The given '",annotation.df.annotation.column.name,"' does not exist in the given annotation.df."))
+    }
+    annotation_names <- annotation[[annotation.df.annotation.column.name]]
+    cluster_ids <- annotation[[annotation.df.cluster.id.column.name]]
+    annotation_as_named_list <- setNames(object = annotation_names, nm = cluster_ids)
+    reset <- FALSE
+  }
+  clusters<-lapply(X = cluster_ids, FUN = function(cluster.id) {
+    cluster <- rlist::list.filter(gmd_clustering$clusters, id == cluster.id)[[1]]
+    description<-paste("NDA - Cluster", cluster$id)
+    if(!reset) {
+      # If annotation for the current cluster not empty then add
+      # Convert from factor to character vector to be used with nchar
+      d<-as.character(x = annotation_as_named_list[cluster.id]) 
+      
+      if(length(d) > 1) {
+        stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
+      }
+      if(nchar(d)>0) {
+        description<-paste0(d, " (",cluster.id,")")
+      }
+    }
+    return (list(id = cluster.id
+                 , description = description))
+  })
+  gmd_clustering$clusters <- clusters
+  c[[gmd_clustering_idx]]<-gmd_clustering
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-NULL
+  gmd[[GA_METADATA_CLUSTERINGS_NAME]]<-c
+  if(in.place) {
+    update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
+    flush(loom = loom)
+  } else {
+    return (gmd)
+  }
 }
 
 #'@title add_global_md_regulon_thresholds
@@ -335,7 +462,17 @@ check_global_meta_data<-function(loom) {
 #'@description  Check if global MetaData attribute exists for the given loom.
 #'@param loom   The loom file handler.
 global_meta_data_exists<-function(loom) {
-  return (loom$attr_exists(attr_name = GA_METADATA_NAME))
+  return (loom$attr_exists(attr_name = GA_METADATA_NAME) | loom$link_exists(name = paste0("attrs/", GA_METADATA_NAME)))
+}
+
+load_global_meta_data <- function(meta.data) {
+  if(!is_base64_encoded(value = meta.data)) {
+    if(!is_json(value = meta.data))
+      stop("The global MetaData attribute in the given loom is corrupted.")
+  } else {
+    meta.data<-decompress_gzb64(gzb64c = meta.data)
+  }
+  return (rjson::fromJSON(json_str = meta.data))
 }
 
 #'@title get_global_meta_data
@@ -343,15 +480,13 @@ global_meta_data_exists<-function(loom) {
 #'@param loom The loom file handler.
 #'@export
 get_global_meta_data<-function(loom) {
-  meta.data<-h5attr(x = loom, which = GA_METADATA_NAME)
-  if(!is_base64_encoded(value = meta.data)) {
-    if(!is_json(value = meta.data)) {
-      stop("The global MetaData attribute in the given loom is corrupted.")
-    }
+  # Check if the given loom is v3
+  if(loom$link_exists(name = "attrs")) {
+    md<-loom[["attrs"]][["MetaData"]][]
   } else {
-    meta.data<-decompress_gzb64(gzb64c = meta.data)
+    md<-h5attr(x = loom, which = GA_METADATA_NAME)
   }
-  return (rjson::fromJSON(json_str = meta.data))
+  return (load_global_meta_data(meta.data = md))
 }
 
 #'@title update_global_meta_data
@@ -360,27 +495,37 @@ get_global_meta_data<-function(loom) {
 #'@param meta.data.json The meta data stored as a json string.
 update_global_meta_data<-function(loom
                                   , meta.data.json) {
-  compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-  update_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    meta.data.json <- as.character(meta.data.json)
+  } else {
+    meta.data.json <- compress_gzb64(c = as.character(meta.data.json))
+  }
+  update_global_attr(loom = loom, key = GA_METADATA_NAME, value = meta.data.json)
 }
 
 #'@title init_global_meta_data
 #'@description  Initialize the global MetaData attribute.
-#'@param loom   The loom file handler.
+#'@param loom               The loom file handler.
+#'@param loom.spec.version  The version of the loom specification. Choose on of: 2 or 3
 #'@export
-init_global_meta_data<-function(loom) {
+init_global_meta_data<-function(loom, loom.spec.version) {
+  if(!(loom.spec.version %in% c(2,3)))
+     stop("Invalid loom.spec.version!")
+  
   meta.data<-list(annotations = list()
                   , metrics = list()
                   , embeddings = list()
                   , clusterings = list()
                   , regulonThresholds = list())
   meta.data.json<-rjson::toJSON(meta.data)
-  if(!(GA_METADATA_NAME %in% list.attributes(object = loom))) {
-    compressed.meta.data<-compress_gzb64(c = as.character(meta.data.json))
-    add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(compressed.meta.data))
-  } else {
+  if(GA_METADATA_NAME %in% list.attributes(object = loom))
     stop("The MetaData global attribute already exists.")
+  if(loom.spec.version < 3) {
+    md<-compress_gzb64(c = as.character(meta.data.json))
+  } else {
+    md<-meta.data.json
   }
+  add_global_attr(loom = loom, key = GA_METADATA_NAME, value = as.character(x = md))
 }
 
 #'@title clear_global_meta_data
@@ -582,6 +727,14 @@ create_trajectory<-function(edges, coordinates) {
 # Clusterings functions #
 #########################
 
+get_unique_clusters <- function(clusters) {
+  if(is.factor(x = clusters)) {
+    return (sort(x = levels(x = clusters), decreasing = F))
+  } else {
+    return (sort(x = unique(x = clusters), decreasing = F))
+  }
+}
+
 #'@title get_seurat_clustering_resolutions
 #'@description Get list of all computed clusterings resolutions in the given seurat object.
 #'@param seurat A Seurat object.
@@ -675,8 +828,11 @@ add_seurat_clustering<-function(loom
       print(paste0("Seurat, ", seurat.clustering.prefix, res))
       
       if(seurat@version >= 3) {
-        Seurat::Idents(object = seurat)<-paste0(seurat.clustering.prefix, res)
-        cluster.ids<-Idents(object = seurat)
+        if(is.null(x = seurat.clustering.prefix)) {
+          stop("The given seurat.clustering.prefix is required. E.g.: RNA_snn_res.")
+        }
+        cluster.ids<-seurat@meta.data[, paste0(seurat.clustering.prefix, res)]
+        names(cluster.ids) <- rownames(seurat@meta.data)
       } else if (seurat@version >= 2 & seurat@version < 3){
         seurat<-Seurat::SetAllIdent(object = seurat, id=resolution.id)
         cluster.ids<-seurat@ident
@@ -708,7 +864,12 @@ add_seurat_clustering<-function(loom
         }
       }
       flush(loom = loom)
-      cluster.annotation<-create_cluster_annotation(clusters = cluster.ids, cluster.meta.data.df = a, cluster.id.cn = ac.id.cn,  cluster.description.cn = ac.description.cn)
+      cluster.annotation<-create_cluster_annotation(
+        clusters = cluster.ids,
+        cluster.meta.data.df = a,
+        cluster.id.cn = ac.id.cn, 
+        cluster.description.cn = ac.description.cn
+      )
       clid<-add_annotated_clustering(loom = loom
                                    , group = "Seurat"
                                    , name = paste("Seurat,", paste0(seurat.clustering.prefix, res))
@@ -785,24 +946,28 @@ create_cluster_annotation<-function(clusters
                                   , cluster.meta.data.df = NULL
                                   , cluster.id.cn =  NULL
                                   , cluster.description.cn = NULL) {
-  if(is.factor(clusters)) {
-    unique.clusters<-sort(as.integer(levels(clusters)), decreasing = F)
-  } else {
-    unique.clusters<-sort(unique(clusters), decreasing = F)
-  }
-  annotation<-setNames(object = rep(NA, length(clusters)), nm = names(clusters))
-  for(cluster in unique.clusters) {
-    description<-paste0("NDA - Cluster ", cluster)
-    if(!is.null(cluster.meta.data.df)) {
+  unique.clusters <- get_unique_clusters(clusters = clusters)
+  annotation<-setNames(object = rep(NA, length(x = clusters)), nm = names(x = clusters))
+
+  for(cluster.idx in seq_along(along.with = unique.clusters)) {
+    cluster.id <- unique.clusters[[cluster.idx]]
+    if(is.numeric(x = cluster.id)) {
+      description<-paste("NDA - Cluster", cluster.id)
+    } else if(is.character(x = cluster.id)) {
+      description<-cluster.id
+    } else {
+      stop("Cluster labels are required to be of class character or numeric.")
+    }
+    if(!is.null(x = cluster.meta.data.df)) {
       if(!(cluster.description.cn %in% colnames(cluster.meta.data.df))) {
         stop(paste0("The given column ",cluster.description.cn, " does not exists in the annotation provided."))
       }
-      description<-cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]
+      description<-as.vector(unlist(x = cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]))
     }
-    annotation[clusters == cluster]<-description
+    annotation[as.vector(x = unlist(x = clusters)) == cluster.id]<-description
   }
   annotation<-factor(x = annotation)
-  names(x = annotation)<-names(clusters)
+  names(x = annotation)<-names(x = clusters)
   return (annotation)
 }
 
@@ -833,6 +998,24 @@ add_clustering<-function(loom
                            , overwrite.default = overwrite.default)
 }
 
+clusters_as_factor_ids<-function(clusters) {
+  # Convert character clusters to to numeric clusters
+  unique.clusters <- get_unique_clusters(clusters = clusters)
+  if(any(is.character(x = unique.clusters)))
+    return (
+      # IDs should start from 0
+      setNames(
+        object = factor(x = mapvalues(
+          x = clusters,
+          from = unique.clusters,
+          to = seq_along(along.with = unique.clusters)-1
+        )),
+        nm = names(x = clusters)
+      )
+    )
+  return (clusters)
+}
+
 #'@title add_annotated_clustering
 #'@description Add the given clusters in the given group column attribute and meta data related to the given clustering to the given .loom file handler.
 #'@param loom                 The loom file handler.
@@ -853,24 +1036,43 @@ add_annotated_clustering<-function(loom
   if(loom$mode=="r") stop("File open as read-only.")
   
   id<-0
-  if(length(unique(clusters)) == length(unique(annotation))) {
+  if(length(x = unique(x = clusters)) == length(x = unique(x = annotation))) {
     # Make sure the order are the same
-    annotation<-annotation[names(clusters)]
+    annotation<-annotation[names(x = clusters)]
   } else {
     # Does not seem that cluster IDs and cluster annotation correspond
     # Remap to have the same number of unique IDs as the number of unique annotation
     library(plyr)
-    clusters<-factor(x = as.integer(mapvalues(annotation, from = unique(x = annotation), to = seq_along(along.with = unique(x = annotation))-1)))
-    names(clusters)<-names(annotation)
+    clusters<-factor(x = mapvalues(
+      x = annotation,
+      from = unique(x = annotation),
+      to = seq_along(along.with = unique(x = annotation))-1
+    ))
+    names(x = clusters)<-names(x = annotation)
   }
-  cell.ids<-get_cell_ids(loom = loom)
+  
+  # Convert clusters to numeric values if needed clusters are of class character
+  # This is required since the column attribute Clusterings expects numeric values
+  clusters_as_factor_ids <- clusters_as_factor_ids(clusters = clusters)
+  
   # Check if all the cells are present in the given clusters
-  n.mismatches<-sum(!(names(clusters) %in% cell.ids))
+  cell.ids<-get_cell_ids(loom = loom)
+  n.mismatches<-sum(!(names(x = clusters) %in% cell.ids))
   if(n.mismatches > 0) {
     stop(paste0("Mismatches detected between the cell IDs (",n.mismatches,") in the given clusters object and in CellID column attribute of the .loom. Please do not use special characters for cell IDs except '_'."))
   }
   # Order the clusters in the order defined CellID column attribute
-  clusters<-clusters[cell.ids]
+  clusters <- clusters[cell.ids]
+  clusters_as_factor_ids <- clusters_as_factor_ids[cell.ids]
+  # Convert clusters_as_factor_ids to integer (not numeric since this will be interpreted as float) otherwise H5T_ENUM will be used leading to 
+  # Datatype: H5T_COMPOUND {
+  #   H5T_ENUM {
+  #     H5T_STD_U8LE;
+  #     "0"                1;
+  #     "1"                2;
+  #   } "0" : 0;
+  # }
+  clusters_as_numeric_ids <- as.integer(x = as.character(x = clusters_as_factor_ids))
   # If the clustering is the default one
   # Add it as the generic column attributes ClusterID and ClusterName
   if(is.default) {
@@ -882,16 +1084,16 @@ add_annotated_clustering<-function(loom
           warning("A default clustering has already been set. The current default clustering will be overwritten.")
           # Check for each if it exists. If it exists update otherwise create new.
           if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_ID)) {
-            update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+            update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = clusters_as_numeric_ids)
           } else {
-            add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+            add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = clusters_as_numeric_ids)
           }
           # Check if annotation is not null
           if(!is.null(x = annotation)) {
             if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME))
               update_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
             else
-              add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.integer(as.character(x = annotation)))
+              add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
           } else {
             # As we overwrite ClusterID and annotation is null, if ClusterName is already present, to be consistent we should delete it.
             if(col_attrs_exists_by_key(loom = loom, key = CA_DFLT_CLUSTERS_NAME)) {
@@ -903,7 +1105,7 @@ add_annotated_clustering<-function(loom
         }
       }
     } else {
-      add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = as.integer(as.character(x = clusters)))
+      add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_ID, value = clusters_as_numeric_ids)
       add_col_attr(loom = loom, key = CA_DFLT_CLUSTERS_NAME, value = as.character(x = annotation))
     }
   }
@@ -912,13 +1114,13 @@ add_annotated_clustering<-function(loom
     print(paste(CA_CLUSTERINGS_NAME, "already exists..."))
     ca.clusterings<-get_clusterings(loom = loom)
     # Set the clustering id
-    id<-ncol(ca.clusterings) # n clusterings (start at 0)
-    clustering<-data.frame("x" = as.integer(as.character(x = clusters)))
+    id<-ncol(x = ca.clusterings) # n clusterings (start at 0)
+    clustering<-data.frame("x" = clusters_as_numeric_ids, stringsAsFactors = F)
     append_clustering_update_ca(loom = loom, clustering.id = id, clustering = clustering)
   } else {
     print(paste(CA_CLUSTERINGS_NAME, "created..."))
-    clustering<-data.frame("x" = as.integer(as.character(x = clusters)), stringsAsFactors = F)
-    colnames(clustering)<-as.character(id)
+    clustering<-data.frame("x" = clusters_as_numeric_ids, stringsAsFactors = F)
+    colnames(x = clustering)<-as.character(x = id)
     add_col_attr(loom = loom, key = CA_CLUSTERINGS_NAME, value = as.data.frame(x = clustering))
   }
   flush(loom = loom)
@@ -928,7 +1130,7 @@ add_annotated_clustering<-function(loom
                            , id = id
                            , group = group
                            , name = name
-                           , clusters = clusters
+                           , clusters = clusters_as_factor_ids
                            , annotation = annotation)
   flush(loom = loom)
   return (id)
@@ -1121,6 +1323,39 @@ add_fbgn<-function(loom
   add_row_attr(loom = loom, key = "FBgn", value = genes$FBgn)
 }
 
+###########################
+# Col data functions      #
+###########################
+
+#'@title add_annotation_by_cluster_annotation_mapping_df
+#'@description Add annotation as column attribute using cluster annotation mapping data.frame
+#'@param loom                                   The loom file handler.
+#'@param key                                    The name of the annotation
+#'@param clustering.name                        The name of the clustering.
+#'@param annotation.df                          The data.frame containing the cluster annotatiion mapping
+#'@param annotation.df.cluster.id.column.name   The column name of the given annotation.df containing the cluster ID values
+#'@param annotation.df.annotation.column.name   The column name of the given annotation.df containing the annotation values.
+#'@export
+add_annotation_by_cluster_annotation_mapping_df<-function(
+  loom,
+  key,
+  clustering.name,
+  annotation.df = NULL,
+  annotation.df.cluster.id.column.name = NULL,
+  annotation.df.annotation.column.name = NULL
+) {
+  md <- get_global_meta_data(loom = loom)
+  gmd_clusterings <- md[["clusterings"]]
+  gmd_clustering <- rlist::list.filter(gmd_clusterings, name == clustering.name)[[1]]
+  ca_clusterings <- get_col_attr_by_key(loom = loom, key = "Clusterings")
+  cluster_annotation <- plyr::mapvalues(
+    ca_clusterings[, as.character(x = gmd_clustering$id)],
+    from = as.character(x = annotation[[annotation.df.cluster.id.column.name]]),
+    to = annotation[[annotation.df.annotation.column.name]]
+  )
+  add_col_attr(loom = loom, key = key, value = cluster_annotation, as.annotation = TRUE)
+}
+
 #####################
 # Generic functions #
 #####################
@@ -1130,7 +1365,9 @@ add_fbgn<-function(loom
 #'@param loom The loom file handler.
 #'@export
 lookup_all_global_attr<-function(loom) {
-  list.attributes(object = loom)
+  if(is_loom_spec_version_3_or_greater(loom = loom))
+    return (loom[["attrs"]]$names)
+  return (list.attributes(object = loom))
 }
 
 
@@ -1142,7 +1379,7 @@ lookup_all_global_attr<-function(loom) {
 update_global_attr<-function(loom
                              , key
                              , value) {
-  if(loom$mode=="r") stop("File open as read-only.")
+  if(loom$mode=="r") stop("Cannot update the given global attribute: file open as read-only.")
   remove_global_attr(loom = loom, key = key)
   add_global_attr(loom = loom, key = key, value = value)
 }
@@ -1154,8 +1391,12 @@ update_global_attr<-function(loom
 #'@param key  The key of the global attribute to remove.
 remove_global_attr<-function(loom
                              , key) {
-  if(loom$mode=="r") stop("File open as read-only.")
-  loom$attr_delete(attr_name = key)
+  if(loom$mode=="r") stop("Cannot renove the given global attribute: file open as read-only.")
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    loom$link_delete(name = paste0("attrs/",key))
+  } else {
+    loom$attr_delete(attr_name = key)
+  }
   flush(loom = loom)
 }
 
@@ -1167,7 +1408,9 @@ remove_global_attr<-function(loom
 #'@export
 get_global_attr<-function(loom
                           , key) {
-  h5attr(x = loom, which = key)
+  if(is_loom_spec_version_3_or_greater(loom = loom))
+    return (loom[["attrs"]][[key]][])
+  return (h5attr(x = loom, which = key))
 }
 
 #'@title add_global_attr
@@ -1175,6 +1418,7 @@ get_global_attr<-function(loom
 #'@param loom   The loom file handler.
 #'@param key    The name of the new added attribute.
 #'@param value  The value of the new added attribute.
+#'@export
 add_global_attr<-function(loom
                           , key
                           , value
@@ -1185,7 +1429,11 @@ add_global_attr<-function(loom
   }
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
-  loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar"))
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    loom$create_dataset(name = paste0("attrs/", key), robj = value, dtype = dtype, space = get_dspace(x = "scalar"), chunk_dims = NULL)
+  } else {
+    loom$create_attr(attr_name = key, robj = value, dtype = dtype, space = get_dspace(x = "scalar")) 
+  }
   flush(loom = loom)
 }
 
@@ -1306,16 +1554,18 @@ add_col_attr<-function(loom
   }
   # Encode character vector to UTF-8
   dtype<-hdf5_utf8_encode(value = value, dtype = dtype)
-  loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
-  flush(loom = loom)
   if(as.annotation) {
+    value<-as.character(x = value)
     add_global_md_annotation(loom = loom, name = key, values = as.character(value))
     flush(loom = loom)
   }
   if(as.metric) {
+    value<-as.numeric(x = value)
     add_global_md_metric(loom = loom, name = key)
     flush(loom = loom)
   }
+  loom$create_dataset(name = paste0("col_attrs/",key), robj = value, dtype = dtype)
+  flush(loom = loom)
 }
 
 #'@title add_matrix
@@ -1333,9 +1583,11 @@ add_matrix<-function(loom
     stop("Please make sure that the expression matrix (dgem) does not contain any NA values.")
   }
   
+  dtype<-get_dtype(x = dgem[1, 1])
+  # Remove row names and column names
   row.names(dgem)<-NULL
   colnames(dgem)<-NULL
-  dtype<-get_dtype(x = dgem[1, 1])
+  
   loom$create_dataset(
     name = 'matrix',
     dtype = dtype,
@@ -1414,11 +1666,19 @@ build_loom<-function(file.name
                      , hierarchy = NULL
                      , fbgn.gn.mapping.file.path = NULL
                      , chunk.size = 1000
-                     , display.progress = T) {
+                     , display.progress = T
+                     , loom.spec.version = 3) {
   is.dgem.sparse<-F
   loom<-H5File$new(filename = file.name, mode = "w")
   tryCatch({
+    # global attrs
     print("Adding global attributes...")
+    if(loom.spec.version > 2) {
+      loom$create_group("attrs")
+    }
+    # Add LOOM_SPEC_VERSION
+    add_global_loom_spec_version(loom, loom.spec.version = loom.spec.version)
+
     # title
     if(!is.null(title)) {
       add_global_attr(loom = loom, key = GA_TITLE_NAME, value = as.character(title))
@@ -1431,12 +1691,10 @@ build_loom<-function(file.name
     add_global_attr(loom = loom, key = GA_CREATION_DATE_NAME, value = as.character(Sys.time()))
     # R version
     add_global_attr(loom = loom, key = GA_R_VERSION_NAME, value = as.character(R.version.string))
-    
     cn<-colnames(dgem)
     rn<-row.names(dgem)
     # global MetaData attribute
-    init_global_meta_data(loom = loom)
-    
+    init_global_meta_data(loom = loom, loom.spec.version = loom.spec.version)
     # Add hierarchy levels
     if(!is.null(hierarchy)) {
       add_hierarchy(loom = loom, hierarchy = hierarchy)
@@ -1495,12 +1753,12 @@ build_loom<-function(file.name
     if(!is.null(fbgn.gn.mapping.file.path)) {
       add_fbgn(loom = loom, dgem = dgem, fbgn.gn.mapping.file.path = fbgn.gn.mapping.file.path)
     }
-    # col_edges
-    print("Adding columns edges...")
-    col.edges<-loom$create_group("col_edges")
+    # col_graphs
+    print("Adding columns graphs...")
+    col.graphs<-loom$create_group("col_graphs")
     # row_edges
-    print("Adding row edges...")
-    row.edges<-loom$create_group("row_edges")
+    print("Adding row graphs...")
+    row.graphs<-loom$create_group("row_graphs")
     # layers
     print("Adding layers...")
     layers<-loom$create_group("layers")
@@ -1531,7 +1789,46 @@ lookup_loom<-function(loom) {
 #'@return A loom file handler
 #'@export
 open_loom<-function(file.path, mode="r+") {
+  loom <- H5File$new(file.path, mode=mode)
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    warning("Loom specification version 3 or greater detected!")
+  } else {
+    warning("Loom specification version 2 or smaller detected!")
+  }
   return (H5File$new(file.path, mode=mode))
+}
+
+#'@title convert_to_loom_v3_spec
+#'@description Convert a .loom file to version 3 specification of the Loom format
+#'@param loom The loom file handler.
+#'@return A loom file handler
+#'@export
+convert_to_loom_v3_spec <- function(loom) {
+  if(is_loom_spec_version_3_or_greater(loom = loom)) {
+    stop("The given loom is already in Loom version 3 specification.")
+  }
+  gmd<-get_global_meta_data(loom = loom)
+  # Update loom spec version to 3
+  print("Updating to Loom v3 specification...")
+  if(loom$attr_exists(attr_name = GA_LOOM_SPEC_VERSION)) {
+    remove_global_attr(loom = loom, GA_LOOM_SPEC_VERSION) 
+  }
+  # Create the global attrs group
+  loom$create_group("attrs")
+  add_global_loom_spec_version(loom, loom.spec.version = 3)
+  for(global_attr_key in list.attributes(object = loom)) {
+    print(paste0("Converting ", global_attr_key, " global attribute to Loom v3 specification..."))
+    if(global_attr_key == "MetaData") {
+      value <- rjson::toJSON(x = gmd)
+    } else {
+      value <- h5attr(x = loom, which = global_attr_key)
+    }
+    loom$attr_delete(attr_name = global_attr_key)
+    add_global_attr(loom = loom, key = global_attr_key, value = value)
+  }
+  flush(loom = loom)
+  return (loom)
+  print("Done")
 }
 
 
@@ -1650,7 +1947,7 @@ get_dtype<-function(x) {
 #'@return The corresponding HDF5 dataspace interface object.
 get_dspace<-function(x) {
   dspaces<-c("scalar", "simple")
-  if(!("scalar" %in% dspaces)) {
+  if(!(x %in% dspaces)) {
     stop(paste("Wrong dspace. Choose either scalar or simple."))
   }
   return (H5S$new(type = x, dims = NULL, maxdims = NULL))
@@ -1737,18 +2034,28 @@ get_dgem<-function(loom) {
   return (dgem)
 }
 
+#'@title get_embedding_by_name
+#'@description Get the embedding with the given embedding.name in the given .loom.
+#'@param loom           The loom file handler.
+#'@param embedding.name The name of the given embedding to retrieve
+#'@return The embedding with the given embedding.name.
+#'@export
+get_embedding_by_name <- function(loom, embedding.name) {
+  return (get_embeddings(loom = loom)[[embedding.name]])
+}
+
 #'@title get_default_embedding
 #'@description Get the default embedding for the given .loom.
 #'@param loom The loom file handler.
 #'@return The default embedding.
 #'@export
 get_default_embedding<-function(loom) {
-  return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]])
+  return (loom[["col_attrs"]][[CA_EMBEDDING_NAME]][])
 }
 
 #' @title get_embeddings
 #' @description Get embeddings (e.g. t-SNE, UMAP) from the given loom file
-#' @param loom .loom file name
+#' @param loom The loom file handler.
 #' @return List with the embeddings (each of them as data.frame)
 #' @examples
 #' loomPath <-  file.path(system.file('extdata', package='SCopeLoomR'), "example.loom")
@@ -2000,3 +2307,4 @@ get_cluster_dgem_by_name<-function(loom
   dgem<-get_dgem(loom = loom)
   return (dgem[, mask])
 }
+

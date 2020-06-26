@@ -1,4 +1,4 @@
-# SCopeLoomR v0.5.0
+# SCopeLoomR v0.9.2
 An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to read data from .loom files.
 
 ## Requirements
@@ -32,21 +32,81 @@ You can find a tutorial on how to create .loom files and read data from them in 
 
 ## Version History
 
+June 22, 2020
+
+* Version 0.9.2
+    * Fix bug https://github.com/aertslab/SCopeLoomR/issues/17
+
+May 27, 2020
+
+* Version 0.9.1
+    * Fix bug when clustering are of class character https://github.com/aertslab/SCopeLoomR/issues/15
+
+May 27, 2020
+
+* Version 0.9.1
+    * Fix bug when clustering are of class character #15
+
+March, 2020
+
+* Version 0.9.0
+    * Add functionality to get embedding by name
+    * Fix bug update hierarchy for loom v3 spec
+    * Fix bug `gmd_clusterings` not found when running `add_annotation_by_cluster_annotation_mapping_df`
+
+* Version 0.8.0
+    * Add functionality to update the cluster descriptions of given clustering using a mapping table (cluster ID to annotation)
+    * Add functionality to add annotation from a mapping table (cluster ID to annotation)
+
+* Version 0.7.0
+    * Add functionality to convert loom with v2 specification to v3 specification. This conversion is recommended if you're planning to use the crowd annotation system from SCope.
+
+February, 2020
+
+* Version 0.6.4
+    * Fix bug `build_loom` not working if dgem is a data.frame
+
+* Version 0.6.3
+    * Fix bug opening loom file v2
+    * Fix bug using `add_hierarchy` results in broken loom file for SCope
+    * Fix conditional statement in `get_dspace`
+
+* Version 0.6.2
+    * Fix bug datasets should not use scalar space
+    * Fix bug `global_meta_data_exists` to work for loom v3 specs
+    * Fix bug conditional statement to create attrs for loom v3 specs
+    * Fix bug use json value in `init_global_meta_data`
+
+* Version 0.6.1
+    * Fix bug `LOOM_SPEC_VERSION` attribute does not exist for old Loom files generated with SCopeLoomR version < 0.6.0.
+
+* Version 0.6.0
+    * Add compatibility for Loom v3
+    * Fix bug getting default embedding
+
+January, 2020
+
+* Version 0.5.1
+    * Fix bug when `add_seurat_clustering` with annotation argument
+
 June, 2019
+
 * Version 0.5.0
     * Adding Seurat clustering results through `add_seurat_clustering` function works now also with Seurat v3 objects.
 
 February, 2019
+
 * Version 0.4.0
     * Embeddings and trajectories inferred from TI methods available within the dyno framework can be stored in .loom files and be displayed in SCope.
 
 January, 2019
+
 * Version 0.3.5
-    * close_loom(): New function
-    * open_loom(): Added argument "mode" and option to open as read-only (mode="r")
+    * `close_loom`: New function
+    * `open_loom`: Added argument "mode" and option to open as read-only (mode="r")
     
 * Version 0.3.4
-    * New functions to read SCENIC results (get_regulonsAuc, get_embeddings, get_regulons, get_cellAnnotation, get_clusterings_withName, get_regulonThresholds).
+    * New functions to read SCENIC results (`get_regulonsAuc`, `get_embeddings`, `get_regulons`, `get_cellAnnotation`, `get_clusterings_withName`, `get_regulonThresholds`).
     * Updates to documentation.
     
 January 11, 2019

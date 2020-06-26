@@ -7,7 +7,7 @@
 build_loom(file.name, title = NULL, genome = NULL, dgem,
   default.embedding = NULL, default.embedding.name = NULL,
   hierarchy = NULL, fbgn.gn.mapping.file.path = NULL,
-  chunk.size = 1000, display.progress = T)
+  chunk.size = 1000, display.progress = T, loom.spec.version = 3)
 }
 \arguments{
 \item{file.name}{A string naming the .loom file to be generated.}
