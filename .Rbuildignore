@@ -1,6 +1,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-.RData
 .Ruserdata
 .gitignore
 tests/*
