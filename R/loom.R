@@ -2217,9 +2217,11 @@ get_cellAnnotation <- function(loom, annotCols=NULL)
 get_regulonsAuc <- function(loom, attrName="MotifRegulonsAUC", rows="regulons", columns="cells") {
   if(!attrName %in% names(loom[["col_attrs"]]))
   {
-    msg <- "The argument 'attrName' is not available in this loom file."
+    msg <- paste("The attribute '", attrName, "' is not available in this loom file.", sep='')
     possibleValues <- grep("egulon", names(loom[["col_attrs"]]), value=T)
-    if(length(possibleValues)>0) msg <- c(msg, " Possible values include: ", paste(possibleValues, collapse=", "),".")
+    if(length(possibleValues)>0) msg <- c(msg, " Possible values include: ", paste(possibleValues, collapse=", "),
+                                          paste(". Try setting the 'attrName' argument to one of these values (i.e., get_regulonsAuc(loom, attrName='", possibleValues[1], "')).", sep="")
+                                          )
     if(length(possibleValues)==0) msg <- c(msg, " The loom doesn't contain regulon information.")
     stop(msg)
   }
@@ -2254,9 +2256,11 @@ get_regulonsAuc <- function(loom, attrName="MotifRegulonsAUC", rows="regulons", 
 get_regulons <- function(loom, attrName="MotifRegulons", tfAsName=TRUE, tfSep="_"){
   if(!attrName %in% names(loom[["row_attrs"]]))
   {
-    msg <- "The argument 'attrName' is not available in this loom file."
+    msg <- paste("The attribute '", attrName, "' is not available in this loom file.", sep='')
     possibleValues <- grep("egulon", names(loom[["row_attrs"]]), value=T)
-    if(length(possibleValues)>0) msg <- c(msg, " Possible values include: ", paste(possibleValues, collapse=", "),".")
+    if(length(possibleValues)>0) msg <- c(msg, " Possible values include: ", paste(possibleValues, collapse=", "),
+                                          paste(". Try setting the 'attrName' argument to one of these values (i.e., get_regulons(loom, attrName='", possibleValues[1], "')).", sep="")
+                                          )
     if(length(possibleValues)==0) msg <- c(msg, " The loom doesn't contain regulon information.")
     stop(msg)
   }
