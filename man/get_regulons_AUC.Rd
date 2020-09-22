@@ -4,10 +4,18 @@
 \alias{get_regulons_AUC}
 \title{get_regulons_auc}
 \usage{
-get_regulons_AUC(loom, rows = "regulons", columns = "cells")
+get_regulons_AUC(
+  loom,
+  column.attr.name = "MotifRegulonsAUC",
+  rows = "regulons",
+  columns = "cells"
+)
 }
 \arguments{
 \item{loom}{.loom file name}
+
+\item{column.attr.name}{Type of regulon to retrieve; Usually 'MotifRegulonsAUC' for motif-based regulons, or 'TrackRegulonsAUC' for track-based (e.g. ChIP-seq) regulons. 
+(Might change according to the SCENIC/pySCENIC pipeline version and settings used).}
 
 \item{rows}{Type of data stored as rows (only for informative purposes) Default: "regulons"}
 

@@ -287,6 +287,12 @@ add_global_md_embedding <- function(
   )
 }
 
+get_global_md_clusterings <- function(
+  loom
+) {
+  return (get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]])
+}
+
 #'@title get_cluster_info_by_id
 #'@description  Get the value of the given field from the cluster with the given clustering_idx and cluster_idx
 #'@param loom           The loom file handler.
@@ -303,7 +309,7 @@ get_cluster_info_by_id <- function(
   if(is.null(x = field)) {
     stop("Missing field argument in get_cluster_info_by_idx.")
   }
-  gmd_clusterings <- get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clusterings <- get_global_md_clusterings(loom = loom)
   gmd_clustering <- get_global_md_clustering_by_id(
     loom = loom,
     clustering.id = clustering.id
@@ -337,7 +343,7 @@ get_global_md_clustering_by_id <- function(
   loom,
   clustering.id
 ) {
-  gmd_clusterings <- get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clusterings <- get_global_md_clusterings(loom = loom)
   gmd_clustering <- list.find(
     .data = gmd_clusterings,
     id == clustering.id
@@ -345,7 +351,7 @@ get_global_md_clustering_by_id <- function(
   if(length(x = gmd_clustering) != 1) {
     stop(paste0("The clustering with the given ID ", clustering.id, " does not exist in this loom file."))
   }
-  return (clustering)
+  return (gmd_clustering[[1]])
 }
 
 #'@title get_global_md_clustering_by_name
@@ -357,7 +363,7 @@ get_global_md_clustering_by_name <- function(
   loom,
   clustering.name
 ) {
-  gmd_clusterings <- get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clusterings <- get_global_md_clusterings(loom = loom)
   gmd_clustering <- list.find(
     .data = gmd_clusterings,
     name == clustering.name
@@ -719,11 +725,12 @@ load_global_meta_data <- function(
   meta.data
 ) {
   if(!is_base64_encoded(value = meta.data)) {
-    if(!is_json(value = meta.data))
+    if(!is_json(value = meta.data)) {
       stop("The global MetaData attribute in the given loom is corrupted.")
+    }
     meta_data <- meta.data
   } else {
-    meta.data <- decompress_gzb64(gzb64c = meta.data)
+    meta_data <- decompress_gzb64(gzb64c = meta.data)
   }
   return (
     rjson::fromJSON(
@@ -2082,6 +2089,12 @@ get_row_attr_by_key <- function(
   key
 ) {
   ra <- loom[["row_attrs"]]
+  if(key == "Gene") {
+    genes <- ra[[key]][]
+    if(any(as.numeric(x = names(x = table(table(genes))))>1)) {
+      stop("Some gene names are duplicated")
+    }
+  }
   return (ra[[key]][])
 }
 
@@ -3124,56 +3137,144 @@ get_cell_mask_by_cluster_name <- function(
   return (ca_clustering%in%cluster_info$cluster.id)
 }
 
-#'@title get_clustering_markers_by_clustering_name
+#'@title get_cluster_markers
 #'@description Get a list of data.frame each containing the statistical markers for the clusters from the clustering with the given clustering.name and filtered with the given log.fc.threshold and given adj.p.value.
-#'@param loom             The loom file handler.
-#'@param clustering.name  The name/description of the clustering.
-#'@param log.fc.threshold The log fold change threshold
-#'@param adj.p.value      The adjusted p-value threshold
+#'@param loom                   The loom file handler.
+#'@param clustering.name        The name/description of the clustering.
+#'@param log.fc.threshold       The log fold change threshold
+#'@param adj.p.value.threshold  The adjusted p-value threshold
 #'@return A list of L data.frame of N-by-M containing the statistical markers for all the clusters of from the clusteirng with the given clustering.name. L represents the number of clusters. N represents the number of statistical markers for a given cluster.
 #'@export
-get_clustering_markers_by_clustering_name <- function(
+get_cluster_markers <- function(
   loom,
-  clustering.name,
-  log.fc.threshold=1.5,
-  adj.p.value=0.05
-){
-  # Get clustering ID
-  clustering <- get_global_md_clustering_by_name(
-    loom = loom,
-    clustering.name = clustering.name
-  )
+  clustering.id = NULL,
+  clustering.name = NULL,
+  log.fc.threshold = 1.5,
+  adj.p.value.threshold = 0.05,
+  n.signif.digits = NULL
+) {
+  clustering <- NULL
+  if(!is.null(x = clustering.name)) {
+    # Get clustering ID
+    clustering <- get_global_md_clustering_by_name(
+      loom = loom,
+      clustering.name = clustering.name
+    )
+  } else {
+    if(is.null(x = clustering.id)) {
+      stop("The clustering.id or clustering.name argument is required.")
+    }
+    clustering <- get_global_md_clustering_by_id(
+      loom = loom,
+      clustering.id = clustering.id
+    )
+  }
   genes <- get_row_attr_by_key(loom = loom, key = "Gene")
+  clustering_marker_mask <- get_row_attr_by_key(
+    loom = loom,
+    key = paste0("ClusterMarkers_", clustering$id) 
+  )
+  rownames(x = clustering_marker_mask) <- genes
+  colnames(x = clustering_marker_mask) <- rep('is_marker', ncol(x = clustering_marker_mask))
+
   clustering_avg_log_fc <- get_row_attr_by_key(
     loom = loom,
     key = paste0(RA_CLUSTERING_MARKERS_NAME, "_", clustering$id, '_avg_logFC')
   )
+  rownames(x = clustering_avg_log_fc) <- genes
+  colnames(x = clustering_avg_log_fc) <- rep('avg_logFC', ncol(x = clustering_avg_log_fc))
+
   clustering_pval <- get_row_attr_by_key(
     loom = loom,
     key = paste0(RA_CLUSTERING_MARKERS_NAME, "_", clustering$id, '_pval')
   )
-  rownames(x = clustering_avg_log_fc) <- genes
   rownames(x = clustering_pval) <- genes
+  colnames(x = clustering_pval) <- rep('adj_pval', ncol(x = clustering_pval))
   
   # Get cluster names
   cluster_names <- get_cluster_names(clustering = clustering)
-  colnames(x = clustering_avg_log_fc) <- rep('avg_logFC', ncol(x = clustering_avg_log_fc))
-  colnames(x = clustering_pval) <- rep('adj_pval', ncol(x = clustering_pval))
   # Create list
   marker_list <- lapply(
     X = 1:ncol(x = clustering_avg_log_fc),
     FUN = function (i) {
       cbind(
+        clustering_marker_mask[,i, drop=FALSE],
         clustering_avg_log_fc[,i, drop=FALSE],
         clustering_pval[,i, drop=FALSE]
       )
     }
   )
-  marker_list <- lapply(X = marker_list, function(x) x <- x[which(x[,1] >  log.fc.threshold),])
-  marker_list <- lapply(X = marker_list, function(x) x <- x[which(x[,2] < adj.p.value),])
-  marker_list <- lapply(X = marker_list, function(x) x <- x[with(x, order(-x[,'avg_logFC'], x[,'adj_pval'])),])
+  # Rounding
+  if(!is.null(x = n.signif.digits)) {
+    marker_list <- lapply(
+      X = marker_list, 
+      FUN = function(x) {
+        return (
+          signif(
+            x = x,
+            digits = n.signif.digits
+          )
+        )
+      }
+    )
+  }
+  # Filter
+  marker_list <- lapply(
+    X = marker_list, 
+    FUN = function(x) x <- x[which(x[,1] == TRUE),]
+  )
+  marker_list <- lapply(
+    X = marker_list, 
+    FUN = function(x) x <- x[which(x[,2] > log.fc.threshold),]
+  )
+  marker_list <- lapply(
+    X = marker_list, 
+    FUN = function(x) x <- x[which(x[,3] < adj.p.value.threshold),]
+  )
+  marker_list <- lapply(
+    X = marker_list, 
+    FUN = function(x) x <- x[with(x, order(-x[,'avg_logFC'], x[,'adj_pval'])),]
+  )
   names(x = marker_list) <- cluster_names
   return(marker_list)
+}
+
+#'@title get_all_markers
+#'@description Get cluster markers from all clusterings fromthe given loom file with filter applied by the given log.fc.threshold and adj.p.value.threshold.
+#'@param loom                   The loom file handler.
+#'@param log.fc.threshold       The log fold change threshold
+#'@param adj.p.value.threshold  The adjusted p-value threshold
+#'@param n.signif.digits        Number of significant digits in the output.
+#'@return A list of data.frames containing all the clusterings with their cluster markers (adj. p-value and log fold changes). The list names refer to the different clustering names.
+#'@export
+get_all_cluster_markers <- function(
+  loom,
+  log.fc.threshold = 1.5,
+  adj.p.value = 0.05,
+  n.signif.digits = NULL
+) {
+  all_markers <- list()
+  clustering_ids <- sapply(
+    X = get_global_md_clusterings(loom = loom),
+    FUN = function(clustering) return (clustering$id)
+  )
+  
+  for(clustering_id in clustering_ids) {
+    clustering_name <- get_global_md_clustering_by_id(
+      loom = loom,
+      clustering.id = clustering_id
+    )$name
+    
+    clustering_markers <- get_clustering_markers_by_clustering_name(
+      loom = loom,
+      clustering.id = clustering_id,
+      log.fc.threshold = log.fc.threshold,
+      adj.p.value = adj.p.value,
+      n.signif.digits = n.signif.digits
+    )
+    all_markers[[clustering_name]] <- clustering_markers
+  }
+  return (all_markers)
 }
 
 #'@title list_clusterings_names
@@ -3184,7 +3285,7 @@ get_clustering_markers_by_clustering_name <- function(
 list_clusterings_names <- function(
   loom
 ) {
-  md_clusterings <- get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  md_clusterings <- get_global_md_clusterings(loom = loom)
   return (sapply(
     X = 1:length(x = md_clusterings),
     FUN = function (i) md_clusterings[[i]]$name)
@@ -3439,69 +3540,4 @@ get_cluster_dgem_by_name <- function(
   )
   dgem <- get_dgem(loom = loom)
   return (dgem[, mask])
-}
-
-#'@title get_markers
-#'@description Get the cluster markers from a loom file.
-#'@param loom The loom file handler.
-#'@param resolutions Cluster resolutions to retrieve.
-#'@param nSignif Number of significant digits in the output.
-#'@param verbose Whether to show information messages.
-#'@return A list of data.frames containing the cluster markers, their p-value and Fold Change. The list names refer to the different resolutions for the clustering.
-#'@export
-get_markers <- function(loom, resolutions=NULL, nSignif=4, verbose=TRUE)
-{
-  rowAttrs <- loom[["row_attrs"]]
-  genes <- rowAttrs[["Gene"]][]; length(genes)
-  if(any(as.numeric(names(table(table(genes))))>1)) stop("Some gene names are duplicated")
-  
-  if(is.null(resolutions))
-  {
-    resolutions <- (1:(length(names(rowAttrs)[grep("ClusterMarkers", names(rowAttrs))])/3))-1
-    if(verbose) message("Using the following resolutions: ", paste(resolutions, collapse=", "))
-  }
-  
-  clMarkersList <- list()
-  for(i in resolutions)
-  {
-    clName <- paste0("ClusterMarkers_",i) 
-    
-    isMarker <- rowAttrs[[clName]][]
-    rownames(isMarker) <- genes
-    markersMat <- igraph::as_edgelist(igraph::graph_from_incidence_matrix(isMarker))
-    colnames(markersMat) <- c("gene", "cl")
-    markers.df <- data.frame(markersMat, stringsAsFactors=F); rm(markersMat)
-    rownames(markers.df) <- paste0(markers.df$gene, "--", markers.df$cl)
-    
-    pVal.im <- data.frame(rowAttrs[[paste0(clName,"_pval")]][])
-    pVal.im$gene <- genes
-    pVal <- tidyr::gather(data=pVal.im, colid, value, -gene)  # pVal %>% pivot_longer(cols=gene, names_to = "pVal", values_to = "value")
-    colnames(pVal) <- c("gene", "cluster", "pVal")
-    pVal$cluster <- gsub("X", "", pVal$cluster)
-    rownames(pVal) <- paste0(pVal$gene, "--", pVal$cluster)
-    head(pVal)
-    
-    alFC.im <- data.frame(rowAttrs[[paste0(clName,"_avg_logFC")]][])
-    alFC.im$gene <- genes
-    alFC <- tidyr::gather(data=alFC.im, colid, value, -gene)  # alFC %>% pivot_longer(cols=gene, names_to = "alFC", values_to = "value")
-    colnames(alFC) <- c("gene", "cluster", "alFC")
-    alFC$cluster <- gsub("X", "", alFC$cluster)
-    rownames(alFC) <- paste0(alFC$gene, "--", alFC$cluster)
-    head(alFC)
-    
-    markers.df$pval <- signif(pVal[rownames(markers.df),"pVal"], nSignif)
-    markers.df$avg_logFC <- signif(alFC[rownames(markers.df),"alFC"], nSignif)
-    
-    rownames(markers.df) <- NULL
-    clMarkersList[[clName]] <- markers.df
-    
-    rm(isMarker)
-    rm(markers.df)
-    rm(alFC)
-    rm(pVal)
-    rm(clName)
-    rm(i)
-  }
-  
-  return(clMarkersList)
 }

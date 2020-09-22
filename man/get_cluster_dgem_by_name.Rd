@@ -5,6 +5,8 @@
 \title{get_cluster_dgem_by_name}
 \usage{
 get_cluster_dgem_by_name(loom, cluster.name)
+
+get_cluster_dgem_by_name(loom, cluster.name)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -13,7 +15,11 @@ get_cluster_dgem_by_name(loom, cluster.name)
 }
 \value{
 A N-by-M matrix containing the gene expression levels of the cells in the cluster annotated by the given cluster.name. N represents the genes and M the cells.
+
+A N-by-M matrix containing the gene expression levels of the cells in the cluster annotated by the given cluster.name. N represents the genes and M the cells.
 }
 \description{
+Get a subset of the digital gene expression matrix containing only the cells in the cluster annotated by the given cluster.name.
+
 Get a subset of the digital gene expression matrix containing only the cells in the cluster annotated by the given cluster.name.
 }

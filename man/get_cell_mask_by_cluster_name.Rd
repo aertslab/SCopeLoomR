@@ -5,6 +5,8 @@
 \title{get_cell_mask_by_cluster_name}
 \usage{
 get_cell_mask_by_cluster_name(loom, cluster.name)
+
+get_cell_mask_by_cluster_name(loom, cluster.name)
 }
 \arguments{
 \item{loom}{The loom file handler.}
@@ -13,7 +15,11 @@ get_cell_mask_by_cluster_name(loom, cluster.name)
 }
 \value{
 A N-by-1 boolean vector specifying which cells belong to the given cluster.name in the given loom.
+
+A N-by-1 boolean vector specifying which cells belong to the given cluster.name in the given loom.
 }
 \description{
+Get a cell mask for the given cluster.name of the given loom.
+
 Get a cell mask for the given cluster.name of the given loom.
 }

@@ -4,10 +4,18 @@
 \alias{get_regulons}
 \title{get_regulons}
 \usage{
-get_regulons(loom, tf.as.name = TRUE, tf.sep = "_")
+get_regulons(
+  loom,
+  column.attr.name = "MotifRegulons",
+  tf.as.name = TRUE,
+  tf.sep = "_"
+)
 }
 \arguments{
 \item{loom}{.loom file name}
+
+\item{attrName}{Type of regulon to retrieve; Usually 'MotifRegulons' for motif-based regulons, or 'TrackRegulons' for track-based (e.g. ChIP-seq) regulons. 
+(Might change according to the SCENIC/pySCENIC pipeline version and settings used).}
 
 \item{tfAsName}{Whether to return only the TF name (calls \code{SCENIC::getTF()}), or the regulon name as stored in the loom file.}
 
