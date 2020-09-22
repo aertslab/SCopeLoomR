@@ -548,8 +548,8 @@ update_cluster_descriptions_by_cluster_annotation_mapping_df <- function(
       what = "c",
       args = lapply(
         X = gmd_clustering$clusters,
-        FUN = function(x) {
-          x$id
+        FUN = function(cluster) {
+          cluster$id
         }
       )
     )
@@ -3096,11 +3096,11 @@ get_clusterings_with_name <- function(
   for(i in seq_along(along.with = colnames(x = clusterings))){
     cluster_levels <- sapply(
       X = get_global_meta_data(loom = loom)$clusterings[[i]]$clusters,
-      FUN = function(x) {
+      FUN = function(cluster) {
         return (
           setNames(
-            object = x$description,
-            nm = x$id
+            object = cluster$description,
+            nm = cluster$id
           )
         )
       }
@@ -3134,7 +3134,7 @@ get_cell_mask_by_cluster_name <- function(
     clustering.id = cluster_info$clustering.id
   )
   # Create the mask
-  return (ca_clustering%in%cluster_info$cluster.id)
+  return (ca_clustering %in% cluster_info$cluster.id)
 }
 
 #'@title get_cluster_markers
@@ -3265,7 +3265,7 @@ get_all_cluster_markers <- function(
       clustering.id = clustering_id
     )$name
     
-    clustering_markers <- get_clustering_markers_by_clustering_name(
+    clustering_markers <- get_cluster_markers(
       loom = loom,
       clustering.id = clustering_id,
       log.fc.threshold = log.fc.threshold,
@@ -3446,7 +3446,7 @@ get_regulons <- function(
     stop(msg)
   }
   
-  incidence_matrix <- loom[["row_attrs"]][[RA_REGULONS]][] # incid mat
+  incidence_matrix <- loom[["row_attrs"]][[column.attr.name]][] # incid mat
   rownames(x = incidence_matrix) <- get_genes(loom = loom)
   incidence_matrix <- t(x = incidence_matrix)
   
@@ -3480,7 +3480,10 @@ get_regulon_thresholds <- function(
     thresholds <- sapply(
       X = get_global_meta_data(loom = loom)$regulonThresholds,
       FUN = function(x) {
-        setNames(object = x$regulon, nm = x$defaultThresholdValue)
+        setNames(
+          object = x$regulon,
+          nm = x$defaultThresholdValue
+        )
       }
     )
   } else{
@@ -3520,7 +3523,7 @@ get_cell_mask_by_cluster_name <- function(
     clustering.id = cluster_info$clustering.id
   )
   # Create the mask
-  return (ca.clustering%in%cluster_info$cluster.id)
+  return (ca.clustering %in% cluster_info$cluster.id)
 }
 
 #'@title get_cluster_dgem_by_name
