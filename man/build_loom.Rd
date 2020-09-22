@@ -4,19 +4,28 @@
 \alias{build_loom}
 \title{build_loom}
 \usage{
-build_loom(file.name, title = NULL, genome = NULL, dgem,
-  default.embedding = NULL, default.embedding.name = NULL,
-  hierarchy = NULL, fbgn.gn.mapping.file.path = NULL,
-  chunk.size = 1000, display.progress = T, loom.spec.version = 3)
+build_loom(
+  file.name,
+  dgem,
+  title = NULL,
+  genome = NULL,
+  default.embedding = NULL,
+  default.embedding.name = NULL,
+  hierarchy = NULL,
+  fbgn.gn.mapping.file.path = NULL,
+  chunk.size = 1000,
+  display.progress = T,
+  loom.spec.version = 3
+)
 }
 \arguments{
 \item{file.name}{A string naming the .loom file to be generated.}
 
+\item{dgem}{A matrix of the gene expression with M genes as rows and N cells as columns.}
+
 \item{title}{A short description of content of loom.}
 
 \item{genome}{The genome used for the mapping.}
-
-\item{dgem}{A matrix of the gene expression with M genes as rows and N cells as columns.}
 
 \item{default.embedding}{A M-by-2 data.frame of the embedding (X and Y coordinates) of the cells.}
 

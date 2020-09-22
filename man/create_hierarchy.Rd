@@ -4,8 +4,7 @@
 \alias{create_hierarchy}
 \title{create_hierarchy}
 \usage{
-create_hierarchy(level.1.name = NULL, level.2.name = NULL,
-  level.3.name = NULL)
+create_hierarchy(level.1.name = NULL, level.2.name = NULL, level.3.name = NULL)
 }
 \arguments{
 \item{level.1.name}{Name of top level of the hierarchy.}

@@ -4,10 +4,14 @@
 \alias{update_cluster_descriptions_by_cluster_annotation_mapping_df}
 \title{update_cluster_descriptions_by_cluster_annotation_mapping_df}
 \usage{
-update_cluster_descriptions_by_cluster_annotation_mapping_df(loom,
-  clustering.name, annotation.df = NULL,
+update_cluster_descriptions_by_cluster_annotation_mapping_df(
+  loom,
+  clustering.name,
+  annotation.df = NULL,
   annotation.df.cluster.id.column.name = NULL,
-  annotation.df.annotation.column.name = NULL, in.place = TRUE)
+  annotation.df.annotation.column.name = NULL,
+  in.place = TRUE
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

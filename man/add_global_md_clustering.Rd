@@ -4,8 +4,7 @@
 \alias{add_global_md_clustering}
 \title{add_global_md_clustering}
 \usage{
-add_global_md_clustering(loom, id, group, name, clusters,
-  annotation = NULL)
+add_global_md_clustering(loom, id, group, name, clusters, annotation = NULL)
 }
 \arguments{
 \item{loom}{The loom file handler.}

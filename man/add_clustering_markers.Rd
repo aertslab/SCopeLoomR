@@ -4,9 +4,14 @@
 \alias{add_clustering_markers}
 \title{add_clustering_markers}
 \usage{
-add_clustering_markers(loom, clustering.id, clustering.markers,
-  marker.metric.accessors = NULL, marker.metric.names = NULL,
-  marker.metric.descriptions = NULL)
+add_clustering_markers(
+  loom,
+  clustering.id,
+  clustering.markers,
+  marker.metric.accessors = NULL,
+  marker.metric.names = NULL,
+  marker.metric.descriptions = NULL
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

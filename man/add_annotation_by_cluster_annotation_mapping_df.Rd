@@ -4,9 +4,14 @@
 \alias{add_annotation_by_cluster_annotation_mapping_df}
 \title{add_annotation_by_cluster_annotation_mapping_df}
 \usage{
-add_annotation_by_cluster_annotation_mapping_df(loom, key, clustering.name,
-  annotation.df = NULL, annotation.df.cluster.id.column.name = NULL,
-  annotation.df.annotation.column.name = NULL)
+add_annotation_by_cluster_annotation_mapping_df(
+  loom,
+  key,
+  clustering.name,
+  annotation.df = NULL,
+  annotation.df.cluster.id.column.name = NULL,
+  annotation.df.annotation.column.name = NULL
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

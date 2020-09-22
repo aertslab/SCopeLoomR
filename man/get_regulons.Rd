@@ -4,7 +4,7 @@
 \alias{get_regulons}
 \title{get_regulons}
 \usage{
-get_regulons(loom, tfAsName = TRUE, tfSep = "_")
+get_regulons(loom, tf.as.name = TRUE, tf.sep = "_")
 }
 \arguments{
 \item{loom}{.loom file name}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/loom.R
 \name{get_clustering_by_id}
 \alias{get_clustering_by_id}
-\title{get_clustering_by_id}
+\title{get_global_md_clustering_by_id}
 \usage{
 get_clustering_by_id(loom, clustering.id)
 }

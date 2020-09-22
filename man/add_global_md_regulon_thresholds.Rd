@@ -4,8 +4,11 @@
 \alias{add_global_md_regulon_thresholds}
 \title{add_global_md_regulon_thresholds}
 \usage{
-add_global_md_regulon_thresholds(loom, regulon.threshold.assignments,
-  regulon.enrichment.table = NULL)
+add_global_md_regulon_thresholds(
+  loom,
+  regulon.threshold.assignments,
+  regulon.enrichment.table = NULL
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

@@ -4,16 +4,21 @@
 \alias{add_seurat_clustering}
 \title{add_seurat_clustering}
 \usage{
-add_seurat_clustering(loom, seurat, seurat.assay = "RNA",
+add_seurat_clustering(
+  loom,
+  seurat,
+  seurat.assay = "RNA",
   seurat.clustering.prefix = NULL,
   seurat.markers.file.path.list = NULL,
   seurat.marker.metric.accessors = NULL,
   seurat.marker.metric.names = NULL,
   seurat.marker.metric.description = NULL,
   default.clustering.resolution = NULL,
-  default.clustering.overwrite = NULL, annotation = NULL,
+  default.clustering.overwrite = NULL,
+  annotation = NULL,
   annotation.cluster.id.cn = NULL,
-  annotation.cluster.description.cn = NULL)
+  annotation.cluster.description.cn = NULL
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

@@ -4,8 +4,12 @@
 \alias{add_scenic_regulons}
 \title{add_scenic_regulons}
 \usage{
-add_scenic_regulons(loom, regulons, regulon.threshold.assignments = NULL,
-  regulon.enrichment.table = NULL)
+add_scenic_regulons(
+  loom,
+  regulons,
+  regulon.threshold.assignments = NULL,
+  regulon.enrichment.table = NULL
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

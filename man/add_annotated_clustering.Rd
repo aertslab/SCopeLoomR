@@ -4,8 +4,15 @@
 \alias{add_annotated_clustering}
 \title{add_annotated_clustering}
 \usage{
-add_annotated_clustering(loom, group, name, clusters, annotation,
-  is.default = F, overwrite.default = NULL)
+add_annotated_clustering(
+  loom,
+  group,
+  name,
+  clusters,
+  annotation,
+  is.default = F,
+  overwrite.default = NULL
+)
 }
 \arguments{
 \item{loom}{The loom file handler.}

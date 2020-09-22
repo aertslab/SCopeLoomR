@@ -4,7 +4,9 @@
 \name{sce}
 \alias{sce}
 \title{Input dataset example}
-\format{An object of class \code{SingleCellExperiment} with 50 rows and 100 columns.}
+\format{
+An object of class \code{SingleCellExperiment} with 50 rows and 100 columns.
+}
 \usage{
 sce
 }
