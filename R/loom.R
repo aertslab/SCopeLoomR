@@ -218,6 +218,97 @@ add_global_md_embedding<-function(loom
   update_global_meta_data(loom = loom, meta.data.json = rjson::toJSON(x = gmd))
 }
 
+#'@title get_cluster_info_by_id
+#'@description  Get the value of the given field from the cluster with the given clustering_idx and cluster_idx
+#'@param loom           The loom file handler.
+#'@param clustering_id The ID of the clustering you want to get the field value from.
+#'@param cluster_id    The ID of the cluster you want to get the field value from.
+#'@param field          The name of the field you want to get the value from.
+#'@export
+get_cluster_info_by_id <- function(
+  loom,
+  clustering.id,
+  cluster.idx,
+  field = NULL
+) {
+  if(is.null(x = field)) {
+    stop("Missing field argument in get_cluster_info_by_idx.")
+  }
+  gmd_clusterings <- get_global_meta_data(loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clustering <- get_global_md_clustering_by_id(loom = loom, clustering.id = clustering.id)
+  gmd_cluster <- gmd_clustering$clusters[[cluster.idx]]
+  if(!(field %in% names(x = gmd_cluster))) {
+    stop(paste0("The given field", field, " is not a valid field for the given cluster ", cluster.idx, "within the clustering wiith the given ID ", clustering.id, "."))
+  }
+  return (gmd_cluster[[field]])
+}
+
+#'@title get_cluster_names
+#'@description  Get the cluster names of the given clustering object
+#'@param loom         The loom file handler.
+#'@param clustering   The clustering object from the global MetaData attribute
+#'@export
+get_cluster_names <- function(
+  clustering
+) {
+  return (
+    sapply(X = clustering$clusters, FUN = function(cluster) return (cluster$description))
+  )
+}
+
+#'@title get_global_md_clustering_by_id
+#'@description  Get the clustering object from the global MetaData attribute with the given clustering.id
+#'@param loom           The loom file handler.
+#'@param clustering.id  The ID of the clustering you want to get the field value from.
+#'@export
+get_global_md_clustering_by_id <- function(
+  loom,
+  clustering.id) {
+  gmd_clusterings <- get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clustering <- list.find(gmd_clusterings, id == clustering.id)
+  if(length(x = gmd_clustering) != 1) {
+    stop(paste0("The clustering with the given ID ", clustering.id, " does not exist in this loom file."))
+  }
+  return (clustering)
+}
+
+#'@title get_global_md_clustering_by_name
+#'@description  Get the clustering object from the global MetaData attribute with the given clustering.name
+#'@param loom             The loom file handler.
+#'@param clustering.name  The ID of the clustering you want to get the field value from.
+#'@export
+get_global_md_clustering_by_name <- function(
+  loom,
+  clustering.name
+) {
+  gmd_clusterings <- get_global_meta_data(loom = loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  gmd_clustering <- list.find(gmd_clusterings, name == clustering.name)
+  if(length(x = gmd_clustering) != 1) {
+    stop(paste0("The given clustering ", clustering.name, " does not exist in this loom file."))
+  }
+  return (gmd_clustering[[1]])
+}
+
+#'@title get_global_md_clustering_info_by_name
+#'@description  Get the clustering object from the global MetaData attribute with the given clustering.name
+#'@param loom             The loom file handler.
+#'@param clustering.name  The name of the clustering you want to get the field value from.
+#'@param field            The field name to get the value from.
+#'@export
+get_global_md_clustering_info_by_name <- function(
+  loom,
+  clustering.name, 
+  field = NULL) {
+  gmd_clustering <- get_global_md_clustering_by_name(
+    loom = loom,
+    clustering.name = clustering.name
+  )
+  if(!(field %in% names(x = gmd_clustering))) {
+    stop(paste0("The given field", field, " is not a valid field for the given clustering ", clustering.name, "."))
+  }
+  return (gmd_clustering[[field]])
+}
+
 #'@title add_global_md_clustering_kv
 #'@description  Add given value with the given key to the clustering with the given clustering.id of the global MetaData attribute
 #'@param loom           The loom file handler.
@@ -1422,6 +1513,17 @@ add_global_attr<-function(loom
   flush(loom = loom)
 }
 
+#'@title get_row_attr_by_key
+#'@description Get the row attribute with the given key.
+#'@param loom The loom file handler.
+#'@param key  The name of the row attribute.
+#'@export
+get_row_attr_by_key<-function(loom
+                              , key) {
+  ra<-loom[["row_attrs"]]
+  return (ra[[key]][])
+}
+
 #'@title remove_row_attr
 #'@description  Remove the row attribute with the given key.
 #'@param key    The name of the row attribute.
@@ -2003,6 +2105,10 @@ get_genes<-function(loom
   }
   return (ra[[RA_GENE_NAME]][])
 }
+
+#**********#
+#  Matrix  #
+#**********#
   
 #'@title get_dgem
 #'@description Get the expression matrix for the given .loom.
@@ -2018,6 +2124,10 @@ get_dgem<-function(loom) {
   row.names(dgem)<-genes
   return (dgem)
 }
+
+#*******************#
+#  Embeddings       #
+#*******************#
 
 #'@title get_embedding_by_name
 #'@description Get the embedding with the given embedding.name in the given .loom.
@@ -2068,13 +2178,19 @@ get_embeddings <- function(loom){
   return(embeddings)
 }
 
+#*******************#
+#  Clusterings      #
+#*******************#
+
 #'@title get_clustering_idx_by_cluster_name
 #'@description Get index of the clutering related to the given cluster.name.
 #'@param loom The loom file handler.
 #'@param cluster.name The name of the cluster.
 #'@return The index of the clustering in the clusterings metadata global attribute corresponding to the clustering where the given cluster.name is found.
-get_clustering_idx_by_cluster_name<-function(loom
-                                             , cluster.name) {
+get_clustering_idx_by_cluster_name <- function(
+  loom,
+  cluster.name
+) {
   library(rlist)
   # Get global meta data
   md<-get_global_meta_data(loom = loom)
@@ -2098,8 +2214,10 @@ get_clustering_idx_by_cluster_name<-function(loom
 #'@param cluster.name The name of the cluster.
 #'@return The index of the clustering in the clusterings metadata global attribute corresponding to the clustering where the given cluster.name is found.
 #'@export
-get_cluster_info_by_cluster_name<-function(loom
-                                           , cluster.name) {
+get_cluster_info_by_cluster_name<-function(
+  loom,
+  cluster.name
+) {
   library(rlist)
   # Get global meta data
   md<-get_global_meta_data(loom = loom)
@@ -2123,20 +2241,22 @@ get_cluster_info_by_cluster_name<-function(loom
 #'@param cluster.name The name of the cluster.
 #'@return A N-by-M data.frame containing the clusterings of the given loom. N represents the cells and M the clusterings.
 #'@export
-get_clusterings<-function(loom) {
+get_clusterings <- function(loom) {
   return (get_col_attr_by_key(loom = loom, key = CA_CLUSTERINGS_NAME))
 }
 
-#'@title get_clustering_by_id
+#'@title get_global_md_clustering_by_id
 #'@description Get clustering with the given clustering.id of the given loom.
 #'@param loom The loom file handler.
 #'@param clustering.id The ID of the clustering.
 #'@return A N-by-1 vector containing the cell assignments to each of the clusters of the clustering.
 #'@export
-get_clustering_by_id<-function(loom
-                               , clustering.id) {
-  ca.clusterings<-get_clusterings(loom = loom)
-  return (ca.clusterings[, colnames(ca.clusterings)%in%clustering.id])
+get_clustering_by_id <- function(
+  loom,
+  clustering.id
+) {
+  ca.clusterings <- get_clusterings(loom = loom)
+  return (ca.clusterings[, colnames(x = ca.clusterings) %in% clustering.id])
 }
 
 #' @title get_clusterings_withName
@@ -2148,15 +2268,111 @@ get_clustering_by_id<-function(loom
 #' # head(clusters)
 #' @export
 get_clusterings_withName <- function(loom){
-  clusterings <- get_clusterings(loom)
-  rownames(clusterings) <- get_cell_ids(loom)
+  clusterings <- get_clusterings(loom = loom)
+  rownames(clusterings) <- get_cell_ids(loom = loom)
   
-  for(i in seq_along(colnames(clusterings))){
-    clLevels <- sapply(get_global_meta_data(loom)$clusterings[[i]]$clusters, function(x) setNames(x$description, x$id))
+  for(i in seq_along(along.with = colnames(x = clusterings))){
+    clLevels <- sapply(
+      X = get_global_meta_data(loom)$clusterings[[i]]$clusters,
+      FUN = function(x) setNames(x$description, x$id)
+    )
     clusterings[,i] <- factor(clusterings[,i], levels=names(clLevels), labels=clLevels)
   }
   return(clusterings)
 }
+
+#'@title get_cell_mask_by_cluster_name
+#'@description Get a cell mask for the given cluster.name of the given loom.
+#'@param loom The loom file handler.
+#'@param cluster.name The name of the cluster.
+#'@return A N-by-1 boolean vector specifying which cells belong to the given cluster.name in the given loom.
+get_cell_mask_by_cluster_name<-function(loom
+                                        , cluster.name) {
+  # Get the cluster info given the cluster.name
+  cluster.info<-get_cluster_info_by_cluster_name(loom = loom, cluster.name = cluster.name)
+  # Get the clustering related to the given cluster.name
+  ca.clustering<-get_global_md_clustering_by_id(loom = loom, clustering.id = cluster.info$clustering.id)
+  # Create the mask
+  return (ca.clustering%in%cluster.info$cluster.id)
+}
+
+#'@title get_clustering_markers_by_clustering_name
+#'@description Get a list of data.frame each containing the statistical markers for the clusters from the clustering with the given clustering.name and filtered with the given log.fc.threshold and given adj.p.value.
+#'@param loom             The loom file handler.
+#'@param clustering.name  The name/description of the clustering.
+#'@param log.fc.threshold The log fold change threshold
+#'@param adj.p.value      The adjusted p-value threshold
+#'@return A list of L data.frame of N-by-M containing the statistical markers for all the clusters of from the clusteirng with the given clustering.name. L represents the number of clusters. N represents the number of statistical markers for a given cluster.
+#'@export
+get_clustering_markers_by_clustering_name <- function(
+  loom,
+  clustering.name,
+  log.fc.threshold=1.5,
+  adj.p.value=0.05
+){
+  # Get clustering ID
+  clustering <- get_global_md_clustering_by_name(
+    loom = loom,
+    clustering.name = clustering.name
+  )
+  genes <- get_row_attr_by_key(loom = loom, key = "Gene")
+  clustering_avg_log_fc <- get_row_attr_by_key(
+    loom = loom,
+    key = paste0(RA_CLUSTERING_MARKERS_NAME, "_", clustering$id, '_avg_logFC')
+  )
+  clustering_pval <- get_row_attr_by_key(
+    loom = loom,
+    key = paste0(RA_CLUSTERING_MARKERS_NAME, "_", clustering$id, '_pval')
+  )
+  rownames(x = clustering_avg_log_fc) <- genes
+  rownames(x = clustering_pval) <- genes
+  
+  # Get cluster names
+  cluster_names <- get_cluster_names(clustering = clustering)
+  colnames(x = clustering_avg_log_fc) <- rep('avg_logFC', ncol(x = clustering_avg_log_fc))
+  colnames(x = clustering_pval) <- rep('adj_pval', ncol(x = clustering_pval))
+  # Create list
+  marker_list <- lapply(
+    X = 1:ncol(x = clustering_avg_log_fc),
+    FUN = function (i) {
+      cbind(
+        clustering_avg_log_fc[,i, drop=FALSE],
+        clustering_pval[,i, drop=FALSE]
+      )
+    }
+  )
+  marker_list <- lapply(X = marker_list, function(x) x <- x[which(x[,1] >  log.fc.threshold),])
+  marker_list <- lapply(X = marker_list, function(x) x <- x[which(x[,2] < adj.p.value),])
+  marker_list <- lapply(X = marker_list, function(x) x <- x[with(x, order(-x[,'avg_logFC'], x[,'adj_pval'])),])
+  names(x = marker_list) <- cluster_names
+  return(marker_list)
+}
+
+list_clusterings_names <- function(loom) {
+  md_clusterings <- get_global_meta_data(loom)[[GA_METADATA_CLUSTERINGS_NAME]]
+  return (sapply(
+    X = 1:length(x = md_clusterings),
+    FUN = function (i) md_clusterings[[i]]$name)
+  )
+}
+
+#'@title get_cluster_dgem_by_name
+#'@description Get a subset of the digital gene expression matrix containing only the cells in the cluster annotated by the given cluster.name.
+#'@param loom The loom file handler.
+#'@param cluster.name The name/description of the cluster.
+#'@return A N-by-M matrix containing the gene expression levels of the cells in the cluster annotated by the given cluster.name. N represents the genes and M the cells.
+#'@export
+get_cluster_dgem_by_name<-function(loom
+                                   , cluster.name) {
+  # Get the cell mask for the given cluster.name
+  mask<-get_cell_mask_by_cluster_name(loom = loom, cluster.name = cluster.name)
+  dgem<-get_dgem(loom = loom)
+  return (dgem[, mask])
+}
+
+#*******************#
+#  Annotations      #
+#*******************#
 
 #' @title get_cellAnnotation
 #' @description Get cell annotations from the given loom file
@@ -2183,6 +2399,9 @@ get_cellAnnotation <- function(loom, annotCols=NULL)
   return(cellAnnot)
 }
 
+#*******************#
+#  Regulons         #
+#*******************#
 
 #' @title get_regulonsAuc
 #' @description Get AUCell matrix from the given loom file
@@ -2209,7 +2428,6 @@ get_regulonsAuc <- function(loom, rows="regulons", columns="cells") {
   }
   return(mtx)
 }
-
 
 #' @title get_regulons
 #' @description Get regulons from the given loom file
@@ -2263,33 +2481,3 @@ get_regulonThresholds <- function(loom, onlySelected=TRUE)
   
   return(thresholds)
 }
-
-#'@title get_cell_mask_by_cluster_name
-#'@description Get a cell mask for the given cluster.name of the given loom.
-#'@param loom The loom file handler.
-#'@param cluster.name The name of the cluster.
-#'@return A N-by-1 boolean vector specifying which cells belong to the given cluster.name in the given loom.
-get_cell_mask_by_cluster_name<-function(loom
-                                        , cluster.name) {
-  # Get the cluster info given the cluster.name
-  cluster.info<-get_cluster_info_by_cluster_name(loom = loom, cluster.name = cluster.name)
-  # Get the clustering related to the given cluster.name
-  ca.clustering<-get_clustering_by_id(loom = loom, clustering.id = cluster.info$clustering.id)
-  # Create the mask
-  return (ca.clustering%in%cluster.info$cluster.id)
-}
-
-#'@title get_cluster_dgem_by_name
-#'@description Get a subset of the digital gene expression matrix containing only the cells in the cluster annotated by the given cluster.name.
-#'@param loom The loom file handler.
-#'@param cluster.name The name/description of the cluster.
-#'@return A N-by-M matrix containing the gene expression levels of the cells in the cluster annotated by the given cluster.name. N represents the genes and M the cells.
-#'@export
-get_cluster_dgem_by_name<-function(loom
-                                   , cluster.name) {
-  # Get the cell mask for the given cluster.name
-  mask<-get_cell_mask_by_cluster_name(loom = loom, cluster.name = cluster.name)
-  dgem<-get_dgem(loom = loom)
-  return (dgem[, mask])
-}
-
