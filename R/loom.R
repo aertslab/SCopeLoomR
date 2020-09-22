@@ -616,6 +616,17 @@ add_global_md_regulon_thresholds <-function(
   if(loom$mode=="r") stop("File open as read-only.")
   gmd <- get_global_meta_data(loom = loom)
   rT <- gmd[["regulonThresholds"]]
+  if(!is.null(x = regulon.enrichment.table)) {
+    # Store the motif name
+    if(!("NES"%in%colnames(x = regulon.enrichment.table))) {
+      stop("Error: NES column is not provided in the regulon enrichment table!")
+    }
+    if(!("motif"%in%colnames(x = regulon.enrichment.table))) {
+      stop("Error: motif column is not provided in the regulon enrichment table!")
+    }
+    regulon_enrichment_table <- regulon.enrichment.table[with(data = regulon.enrichment.table, order(NES, decreasing = T)), ]
+    regulon_enrichment_table <- regulon_enrichment_table[which(x = regulon_enrichment_table$TFinDB!=""),]
+  }
   for(regulon in names(x = regulon.threshold.assignments)) {
     regulon_name <- strsplit(x = regulon, split = " ")[[1]][1]
     # Store the threshold assignments
@@ -642,24 +653,33 @@ add_global_md_regulon_thresholds <-function(
     )
     # Add the motif data
     if(!is.null(x = regulon.enrichment.table)) {
-      # Store the motif name
-      if(!("NES"%in%colnames(regulon.enrichment.table))) {
-        stop("Error: NES column is not provided in the regulon enrichment table!")
+      regulon_tf <- gsub(
+        pattern = "_extended",
+        replacement = "",
+        x = regulon.name
+      )
+      met_subset <- regulon_enrichment_table[regulon_enrichment_table$highlightedTFs == regulon_tf,]
+      motif_by_type <- split(
+        x = met_subset$motif,
+        f = met_subset$TFinDB
+      )
+      
+      motif_name = NULL
+      if(grepl("_extended",regulon.name)) {
+        motif_name = motif_by_type[["*"]][1] ## Extended
+      } else{ 
+        motif_name = motif_by_type[["**"]][1] ## High confidence annotation
       }
-      if(!("motif"%in%colnames(regulon.enrichment.table))) {
-        stop("Error: motif column is not provided in the regulon enrichment table!")
-      }
-      regulon_enrichment_table <- regulon.enrichment.table[with(regulon.enrichment.table, order(NES, decreasing = T)), ]
-      motif_name = regulon_enrichment_table$motif[regulon_enrichment_table$highlightedTFs == regulon_name][1]
-      motifData <- paste0(motif_name,".png")
+      
+      motif_data <- paste0(motif_name,".png")
       regulon_tresholds <- append(
         x = regulon_tresholds,
-        values = list("motifData"=motifData)
+        values = list("motifData"=motif_data)
       )
     } else {
       warning("Argument 'regulon.enrichment.table' is not provided. Motif data will not be stored in the given .loom.")
     }
-    rT[[length(rT)+1]] <- regulon_tresholds
+    rT[[length(x = rT)+1]] <- regulon_tresholds
   }
   gmd[["regulonThresholds"]] <- NULL
   gmd[["regulonThresholds"]] <- rT
@@ -669,6 +689,7 @@ add_global_md_regulon_thresholds <-function(
   )
   flush(loom = loom)
 }
+
 
 #'@title check_global_meta_data
 #'@description  Perform some sanity checks on the MetaData global attribute
@@ -3231,6 +3252,8 @@ get_cell_annotation <- function(
 #' @title get_regulons_auc
 #' @description Get AUCell matrix from the given loom file
 #' @param loom .loom file name
+#' @param column.attr.name Type of regulon to retrieve; Usually 'MotifRegulonsAUC' for motif-based regulons, or 'TrackRegulonsAUC' for track-based (e.g. ChIP-seq) regulons. 
+#' (Might change according to the SCENIC/pySCENIC pipeline version and settings used).
 #' @param rows Type of data stored as rows (only for informative purposes) Default: "regulons"
 #' @param columns Type of data stored as columns (only for informative purposes) Default: "cells"
 #' @return AUC matrix in the slot \code{loom[["col_attrs"]][["RegulonsAUC"]][]}. 
@@ -3243,17 +3266,42 @@ get_cell_annotation <- function(
 #' @export
 get_regulons_AUC <- function(
   loom,
+  column.attr.name="MotifRegulonsAUC",
   rows="regulons",
   columns="cells"
 ) {
-  mtx <- loom[["col_attrs"]][[CA_REGULONS_AUC]][]
+  if(!column.attr.name %in% names(loom[["col_attrs"]]))
+  {
+    msg <- paste("The attribute '", column.attr.name, "' is not available in this loom file.", sep='')
+    possible_values <- grep("egulon", names(x = loom[["col_attrs"]]), value=T)
+    if(length(x = possible_values)>0) {
+      msg <- c(
+        msg, 
+        " Possible values include: ",
+        paste(possible_values, collapse=", "),
+        paste(". Try setting the 'column.attr.name' argument to one of these values (i.e., get_regulons_AUC(loom, column.attr.name='", possible_values[1], "')).",sep="")
+      )
+    }
+    if(length(x = possible_values) == 0) {
+      msg <- c(
+        msg, 
+        " The loom doesn't contain regulon information."
+      )
+    }
+    stop(msg)
+  }
+  
+  mtx <- loom[["col_attrs"]][[column.attr.name]][]
   rownames(x = mtx) <- get_cell_ids(loom = loom)
   mtx <- t(x = mtx)
   names(x = dimnames(x = mtx)) <- c(rows, columns)
-  
-  if("AUCell" %in% rownames(x = installed.packages())){
+
+  if("AUCell" %in% rownames(x = installed.packages())) {
     require(AUCell)
-    mtx <- new("aucellResults", SummarizedExperiment::SummarizedExperiment(assays=list(AUC=mtx)))
+    mtx <- new(
+      Class = "aucellResults",
+      SummarizedExperiment::SummarizedExperiment(assays=list(AUC=mtx))
+    )
   }
   return(mtx)
 }
@@ -3261,6 +3309,8 @@ get_regulons_AUC <- function(
 #' @title get_regulons
 #' @description Get regulons from the given loom file
 #' @param loom .loom file name
+#' @param attrName Type of regulon to retrieve; Usually 'MotifRegulons' for motif-based regulons, or 'TrackRegulons' for track-based (e.g. ChIP-seq) regulons. 
+#' (Might change according to the SCENIC/pySCENIC pipeline version and settings used).
 #' @param tfAsName Whether to return only the TF name (calls \code{SCENIC::getTF()}), or the regulon name as stored in the loom file.
 #' @param tfSep Character used as separator for the TF name and extra values stored in the regulon name. To be passed to SCENIC::getTF()
 #' @return The regulons as incidence matrix or list.
@@ -3273,9 +3323,28 @@ get_regulons_AUC <- function(
 #' @export
 get_regulons <- function(
   loom,
+  column.attr.name="MotifRegulons",
   tf.as.name=TRUE,
   tf.sep="_"
 ){
+  if(!column.attr.name %in% names(loom[["row_attrs"]]))
+  {
+    msg <- paste("The attribute '", column.attr.name, "' is not available in this loom file.", sep='')
+    possible_values <- grep("egulon", names(loom[["row_attrs"]]), value=T)
+    if(length(x = possible_values) > 0) {
+      msg <- c(
+        msg,
+        " Possible values include: ",
+        paste(possible_values, collapse=", "),
+        paste(". Try setting the 'column.attr.name' argument to one of these values (i.e., get_regulons(loom, column.attr.name='", possible_values[1], "')).", sep="")
+      )
+    }
+    if(length(x = possible_values) == 0) {
+      msg <- c(msg, " The loom doesn't contain regulon information.")
+    }
+    stop(msg)
+  }
+  
   incidence_matrix <- loom[["row_attrs"]][[RA_REGULONS]][] # incid mat
   rownames(x = incidence_matrix) <- get_genes(loom = loom)
   incidence_matrix <- t(x = incidence_matrix)
@@ -3302,8 +3371,10 @@ get_regulons <- function(
 #' thresholds <- get_regulon_thresholds(loom)
 #' head(thresholds)
 #' @export
-get_regulon_thresholds <- function(loom, only.selected=TRUE)
-{
+get_regulon_thresholds <- function(
+  loom,
+  only.selected=TRUE
+) {
   if(only.selected) {
     thresholds <- sapply(
       X = get_global_meta_data(loom = loom)$regulonThresholds,
@@ -3321,8 +3392,116 @@ get_regulon_thresholds <- function(loom, only.selected=TRUE)
             thresholds=data.frame(x$allThresholds) # if pySCENIC: transpose?
           )
         )
-    })
+      }
+    )
   }
   
   return(thresholds)
+}
+
+#'@title get_cell_mask_by_cluster_name
+#'@description Get a cell mask for the given cluster.name of the given loom.
+#'@param loom The loom file handler.
+#'@param cluster.name The name of the cluster.
+#'@return A N-by-1 boolean vector specifying which cells belong to the given cluster.name in the given loom.
+get_cell_mask_by_cluster_name <- function(
+  loom,
+  cluster.name
+) {
+  # Get the cluster info given the cluster.name
+  cluster_info <- get_cluster_info_by_cluster_name(
+    loom = loom,
+    cluster.name = cluster.name
+  )
+  # Get the clustering related to the given cluster.name
+  ca.clustering <- get_clustering_by_id(
+    loom = loom,
+    clustering.id = cluster_info$clustering.id
+  )
+  # Create the mask
+  return (ca.clustering%in%cluster_info$cluster.id)
+}
+
+#'@title get_cluster_dgem_by_name
+#'@description Get a subset of the digital gene expression matrix containing only the cells in the cluster annotated by the given cluster.name.
+#'@param loom The loom file handler.
+#'@param cluster.name The name/description of the cluster.
+#'@return A N-by-M matrix containing the gene expression levels of the cells in the cluster annotated by the given cluster.name. N represents the genes and M the cells.
+#'@export
+get_cluster_dgem_by_name <- function(
+  loom,
+  cluster.name
+) {
+  # Get the cell mask for the given cluster.name
+  mask <- get_cell_mask_by_cluster_name(
+    loom = loom,
+    cluster.name = cluster.name
+  )
+  dgem <- get_dgem(loom = loom)
+  return (dgem[, mask])
+}
+
+#'@title get_markers
+#'@description Get the cluster markers from a loom file.
+#'@param loom The loom file handler.
+#'@param resolutions Cluster resolutions to retrieve.
+#'@param nSignif Number of significant digits in the output.
+#'@param verbose Whether to show information messages.
+#'@return A list of data.frames containing the cluster markers, their p-value and Fold Change. The list names refer to the different resolutions for the clustering.
+#'@export
+get_markers <- function(loom, resolutions=NULL, nSignif=4, verbose=TRUE)
+{
+  rowAttrs <- loom[["row_attrs"]]
+  genes <- rowAttrs[["Gene"]][]; length(genes)
+  if(any(as.numeric(names(table(table(genes))))>1)) stop("Some gene names are duplicated")
+  
+  if(is.null(resolutions))
+  {
+    resolutions <- (1:(length(names(rowAttrs)[grep("ClusterMarkers", names(rowAttrs))])/3))-1
+    if(verbose) message("Using the following resolutions: ", paste(resolutions, collapse=", "))
+  }
+  
+  clMarkersList <- list()
+  for(i in resolutions)
+  {
+    clName <- paste0("ClusterMarkers_",i) 
+    
+    isMarker <- rowAttrs[[clName]][]
+    rownames(isMarker) <- genes
+    markersMat <- igraph::as_edgelist(igraph::graph_from_incidence_matrix(isMarker))
+    colnames(markersMat) <- c("gene", "cl")
+    markers.df <- data.frame(markersMat, stringsAsFactors=F); rm(markersMat)
+    rownames(markers.df) <- paste0(markers.df$gene, "--", markers.df$cl)
+    
+    pVal.im <- data.frame(rowAttrs[[paste0(clName,"_pval")]][])
+    pVal.im$gene <- genes
+    pVal <- tidyr::gather(data=pVal.im, colid, value, -gene)  # pVal %>% pivot_longer(cols=gene, names_to = "pVal", values_to = "value")
+    colnames(pVal) <- c("gene", "cluster", "pVal")
+    pVal$cluster <- gsub("X", "", pVal$cluster)
+    rownames(pVal) <- paste0(pVal$gene, "--", pVal$cluster)
+    head(pVal)
+    
+    alFC.im <- data.frame(rowAttrs[[paste0(clName,"_avg_logFC")]][])
+    alFC.im$gene <- genes
+    alFC <- tidyr::gather(data=alFC.im, colid, value, -gene)  # alFC %>% pivot_longer(cols=gene, names_to = "alFC", values_to = "value")
+    colnames(alFC) <- c("gene", "cluster", "alFC")
+    alFC$cluster <- gsub("X", "", alFC$cluster)
+    rownames(alFC) <- paste0(alFC$gene, "--", alFC$cluster)
+    head(alFC)
+    
+    markers.df$pval <- signif(pVal[rownames(markers.df),"pVal"], nSignif)
+    markers.df$avg_logFC <- signif(alFC[rownames(markers.df),"alFC"], nSignif)
+    
+    rownames(markers.df) <- NULL
+    clMarkersList[[clName]] <- markers.df
+    
+    rm(isMarker)
+    rm(markers.df)
+    rm(alFC)
+    rm(pVal)
+    rm(clName)
+    rm(i)
+  }
+  
+  return(clMarkersList)
 }
