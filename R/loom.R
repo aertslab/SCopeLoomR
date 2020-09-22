@@ -2566,12 +2566,12 @@ lookup_loom <- function(
 #'@title open_loom
 #'@description Open loom file and return a .loom file handler.
 #'@param  file.path The file path to the .loom file.
-#'@param mode "r+" for read/write (default). "r" for read-only. 
+#'@param mode "r" for read/write (default). "r" for read-only. 
 #'@return A loom file handler
 #'@export
 open_loom <- function(
   file.path,
-  mode="r+"
+  mode="r"
 ) {
   loom <- H5File$new(
     filename = file.path,
