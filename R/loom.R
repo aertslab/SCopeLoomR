@@ -3239,7 +3239,7 @@ get_cluster_markers <- function(
   return(marker_list)
 }
 
-#'@title get_all_markers
+#'@title get_all_cluster_markers
 #'@description Get cluster markers from all clusterings fromthe given loom file with filter applied by the given log.fc.threshold and adj.p.value.threshold.
 #'@param loom                   The loom file handler.
 #'@param log.fc.threshold       The log fold change threshold
