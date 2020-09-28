@@ -2309,7 +2309,7 @@ add_matrix <- function(
   for (col in 1:ncol(x = chunk_points)) {
     row_start <- chunk_points[1, col]
     row_end <- chunk_points[2, col]
-    loom[['matrix']][row.start:row_end, ] <- t(x = as.matrix(x = dgem[, row_start:row_end]))
+    loom[['matrix']][row_start:row_end, ] <- t(x = as.matrix(x = dgem[, row_start:row_end]))
     if(display.progress) {
       utils::setTxtProgressBar(pb = pb, value = col / ncol(x = chunk_points))
     }
