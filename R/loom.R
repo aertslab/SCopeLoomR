@@ -2566,7 +2566,7 @@ lookup_loom <- function(
 #'@title open_loom
 #'@description Open loom file and return a .loom file handler.
 #'@param  file.path The file path to the .loom file.
-#'@param mode "r" for read/write (default). "r" for read-only. 
+#'@param mode "r" for read-only (default). "r+" for read/write
 #'@return A loom file handler
 #'@export
 open_loom <- function(
@@ -2577,6 +2577,9 @@ open_loom <- function(
     filename = file.path,
     mode = mode
   )
+  if(mode != "r" & mode != 'r+') {
+    stop("'r' (read) and 'r+' (read/write) modes are only allowed.")
+  }
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
     warning("Loom specification version 3 or greater detected!")
   } else {
