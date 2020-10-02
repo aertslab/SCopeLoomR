@@ -145,13 +145,25 @@ get_global_loom_spec_version <- function(loom) {
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 3 but it's different (",loom.spec.version,") !"))
     return (loom.spec.version)
   } else {
+    # If not exists, add attribute
     if(GA_LOOM_SPEC_VERSION %in% list.attributes(object = loom)) {
-      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
-    } else {
-      h5attr(x = loom, which = GA_LOOM_SPEC_VERSION) <- "2.0.0"
-      warning("LOOM_SPEC_VERSION attribute not detected. This loom file has probably been generated SCopeLoomR version < 0.6.0. Adding this attribute to the loom file to follow Loompy standards...")
-      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
-      warning("Done")
+      loom.spec.version <- h5attr(x=loom, which=GA_LOOM_SPEC_VERSION)
+    }else{
+      tryCatch(
+          {
+            warning("LOOM_SPEC_VERSION attribute not detected. This loom file has probably been generated SCopeLoomR version < 0.6.0. 
+                Adding this attribute to the loom file to follow Loompy standards...")
+            h5attr(x=loom, which=GA_LOOM_SPEC_VERSION) <- "2.0.0"
+            # add_global_loom_spec_version(loom=loom, loom.spec.version=2) # why not this?
+            return(loom.spec.version)
+          },
+          error = function(e) {
+            e$message <- paste0("It was not possible to update the attribute. Maybe the file is open as read only?\n Original error message:\n", 
+                                e$message)
+            stop(e)
+          }
+        )
+      loom.spec.version <- h5attr(x=loom, which=GA_LOOM_SPEC_VERSION)
     }
     if(loom.spec.version >= 3)
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 2 but it's different (",loom.spec.version,") !"))
