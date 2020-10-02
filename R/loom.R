@@ -673,7 +673,7 @@ add_global_md_regulon_thresholds <-function(
       regulon_tf <- gsub(
         pattern = "_extended",
         replacement = "",
-        x = regulon.name
+        x = regulon_name
       )
       met_subset <- regulon_enrichment_table[regulon_enrichment_table$highlightedTFs == regulon_tf,]
       motif_by_type <- split(
@@ -682,7 +682,7 @@ add_global_md_regulon_thresholds <-function(
       )
       
       motif_name = NULL
-      if(grepl("_extended",regulon.name)) {
+      if(grepl("_extended",regulon_name)) {
         motif_name = motif_by_type[["*"]][1] ## Extended
       } else{ 
         motif_name = motif_by_type[["**"]][1] ## High confidence annotation
