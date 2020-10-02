@@ -2584,6 +2584,9 @@ open_loom <- function(
   file.path,
   mode="r"
 ) {
+  if(mode != "r" & mode != 'r+') {
+    stop("'r' (read) and 'r+' (read/write) modes are only allowed.")
+  }
   loom <- tryCatch(
     {
       H5File$new(
@@ -2600,9 +2603,6 @@ open_loom <- function(
       stop(e)
     }
   )
-  if(mode != "r" & mode != 'r+') {
-    stop("'r' (read) and 'r+' (read/write) modes are only allowed.")
-  }
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
     warning("Loom specification version 3 or greater detected!")
   } else {
