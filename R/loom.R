@@ -145,13 +145,24 @@ get_global_loom_spec_version <- function(loom) {
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 3 but it's different (",loom.spec.version,") !"))
     return (loom.spec.version)
   } else {
+    # If not exists, add attribute
     if(GA_LOOM_SPEC_VERSION %in% list.attributes(object = loom)) {
-      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
+      loom.spec.version <- h5attr(x=loom, which=GA_LOOM_SPEC_VERSION)
     } else {
-      h5attr(x = loom, which = GA_LOOM_SPEC_VERSION) <- "2.0.0"
-      warning("LOOM_SPEC_VERSION attribute not detected. This loom file has probably been generated SCopeLoomR version < 0.6.0. Adding this attribute to the loom file to follow Loompy standards...")
-      loom.spec.version <- h5attr(x = loom, which = GA_LOOM_SPEC_VERSION)
-      warning("Done")
+      tryCatch(
+          {
+            warning("LOOM_SPEC_VERSION attribute not detected. This loom file has probably been generated SCopeLoomR version < 0.6.0. 
+                Adding this attribute to the loom file to follow Loompy standards...")
+            h5attr(x=loom, which=GA_LOOM_SPEC_VERSION) <- "2.0.0"
+            # add_global_loom_spec_version(loom=loom, loom.spec.version=2) # why not this?
+          },
+          error = function(e) {
+            e$message <- paste0("It was not possible to update the attribute. Maybe the file is open in mode 'read-only'? (mode='r')\n", 
+                                e$message)
+            stop(e)
+          }
+        )
+      loom.spec.version <- h5attr(x=loom, which=GA_LOOM_SPEC_VERSION)
     }
     if(loom.spec.version >= 3)
       stop(paste0("Corrupted loom file: expecting LOOM_SPEC_VERSION 2 but it's different (",loom.spec.version,") !"))
@@ -2573,9 +2584,21 @@ open_loom <- function(
   file.path,
   mode="r"
 ) {
-  loom <- H5File$new(
-    filename = file.path,
-    mode = mode
+  loom <- tryCatch(
+    {
+      H5File$new(
+        filename = file.path,
+        mode = mode
+      )
+    },
+    error = function(e) {
+      msg <-  paste0("It is not possible to open the file. ")
+      if(tolower(mode)=="w") msg <-  paste0(msg, "Do you have permissions to open it in WRITE mode? (mode='w')")
+      
+      msg <-  paste0(msg, "\n", e$message)
+      e$message <- msg
+      stop(e)
+    }
   )
   if(mode != "r" & mode != 'r+') {
     stop("'r' (read) and 'r+' (read/write) modes are only allowed.")
@@ -2585,12 +2608,7 @@ open_loom <- function(
   } else {
     warning("Loom specification version 2 or smaller detected!")
   }
-  return (
-    H5File$new(
-      filename = file.path,
-      mode = mode
-    )
-  )
+  return (loom)
 }
 
 #'@title convert_to_loom_v3_spec
@@ -2964,7 +2982,7 @@ get_embeddings <- function(
       tmp <- as.matrix(x = get_default_embedding(loom = loom)[])
       rownames(x = tmp) <- get_cell_ids(loom = loom)
       embeddings[[embedding$name]] <- tmp
-    } else{
+    } else {
       tmp <- cbind(
         loom[["col_attrs"]][["Embeddings_X"]][][,as.character(embedding$id)],
         loom[["col_attrs"]][["Embeddings_Y"]][][,as.character(embedding$id)]
