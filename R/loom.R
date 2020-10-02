@@ -155,10 +155,9 @@ get_global_loom_spec_version <- function(loom) {
                 Adding this attribute to the loom file to follow Loompy standards...")
             h5attr(x=loom, which=GA_LOOM_SPEC_VERSION) <- "2.0.0"
             # add_global_loom_spec_version(loom=loom, loom.spec.version=2) # why not this?
-            return(loom.spec.version)
           },
           error = function(e) {
-            e$message <- paste0("It was not possible to update the attribute. Maybe the file is open as read only?\n Original error message:\n", 
+            e$message <- paste0("It was not possible to update the attribute. Maybe the file is open in mode 'read-only'? (mode='r')\n", 
                                 e$message)
             stop(e)
           }
@@ -2578,28 +2577,37 @@ lookup_loom <- function(
 #'@title open_loom
 #'@description Open loom file and return a .loom file handler.
 #'@param  file.path The file path to the .loom file.
-#'@param mode "r" for read/write (default). "r" for read-only. 
+#'@param mode "r" for read-only (default). "w" for read/write. 
 #'@return A loom file handler
 #'@export
 open_loom <- function(
   file.path,
   mode="r"
 ) {
-  loom <- H5File$new(
-    filename = file.path,
-    mode = mode
+  
+  loom <- tryCatch(
+    {
+      H5File$new(
+        filename = file.path,
+        mode = mode
+      )
+    },
+    error = function(e) {
+      msg <-  paste0("It is not possible to open the file. ")
+      if(tolower(mode)=="w") msg <-  paste0(msg, "Do you have permissions to open it in WRITE mode? (mode='w')")
+      
+      msg <-  paste0(msg, "\n", e$message)
+      e$message <- msg
+      stop(e)
+    }
   )
+  
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
     warning("Loom specification version 3 or greater detected!")
   } else {
     warning("Loom specification version 2 or smaller detected!")
   }
-  return (
-    H5File$new(
-      filename = file.path,
-      mode = mode
-    )
-  )
+  return (loom)
 }
 
 #'@title convert_to_loom_v3_spec
