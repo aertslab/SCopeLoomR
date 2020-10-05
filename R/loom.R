@@ -2604,7 +2604,7 @@ open_loom <- function(
     }
   )
   if(is_loom_spec_version_3_or_greater(loom = loom)) {
-    warning("Loom specification version 3 or greater detected!")
+    # warning("Loom specification version 3 or greater detected!")
   } else {
     warning("Loom specification version 2 or smaller detected!")
   }
