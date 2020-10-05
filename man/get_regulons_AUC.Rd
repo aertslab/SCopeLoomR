@@ -2,7 +2,7 @@
 % Please edit documentation in R/loom.R
 \name{get_regulons_AUC}
 \alias{get_regulons_AUC}
-\title{get_regulons_auc}
+\title{get_regulons_AUC}
 \usage{
 get_regulons_AUC(
   loom,
