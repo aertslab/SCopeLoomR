@@ -9,7 +9,7 @@ open_loom(file.path, mode = "r")
 \arguments{
 \item{file.path}{The file path to the .loom file.}
 
-\item{mode}{"r" for read/write (default). "r" for read-only.}
+\item{mode}{"r" for read-only (default). "r+" for read/write}
 }
 \value{
 A loom file handler
