@@ -1473,7 +1473,7 @@ clusters_as_factor_ids <- function(clusters) {
     return (
       # IDs should start from 0
       setNames(
-        object = factor(x = mapvalues(
+        object = factor(x = plyr::mapvalues(
           x = clusters,
           from = unique_clusters,
           to = seq_along(along.with = unique_clusters)-1
@@ -1512,8 +1512,7 @@ add_annotated_clustering <- function(
   } else {
     # Does not seem that cluster IDs and cluster annotation correspond
     # Remap to have the same number of unique IDs as the number of unique annotation
-    library(plyr)
-    clusters <- factor(x = mapvalues(
+    clusters <- factor(x = plyr::mapvalues(
       x = annotation,
       from = unique(x = annotation),
       to = seq_along(along.with = unique(x = annotation))-1
