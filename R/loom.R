@@ -1428,7 +1428,7 @@ create_cluster_annotation <- function(
       }
       description <- as.vector(x = unlist(x = cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]))
     }
-    annotation[as.vector(x = unlist(x = clusters)) == cluster.id] <- description
+    annotation[as.vector(x = unlist(x = clusters)) == cluster_id] <- description
   }
   annotation <- factor(x = annotation)
   names(x = annotation) <- names(x = clusters)
