@@ -3087,12 +3087,12 @@ get_cluster_info_by_cluster_name <- function(
 get_clusterings <- function(
   loom
 ) {
-  return (
-    get_col_attr_by_key(
-      loom = loom,
-      key = CA_CLUSTERINGS_NAME
-    )
+  clusterings <- get_col_attr_by_key(
+    loom = loom,
+    key = CA_CLUSTERINGS_NAME
   )
+  row.names(x = clusterings) <- get_cell_ids(loom = loom)
+  return (clusterings)
 }
 
 #'@title get_global_md_clustering_by_id
@@ -3120,12 +3120,16 @@ get_clustering_by_id <- function(
 get_clusterings_with_name <- function(
   loom
 ){
+  md_clusterings <- get_global_meta_data(loom = loom)$clusterings
+  clustering_ids <- sapply(X = md_clusterings, FUN = function(x) { return (x$id)})
   clusterings <- get_clusterings(loom = loom)
-  rownames(x = clusterings) <- get_cell_ids(loom = loom)
+  # Filter out clusterings not present in global metadata attribute
+  clusterings <- clusterings[, as.character(x = clustering_ids)]
   
-  for(i in seq_along(along.with = colnames(x = clusterings))){
+  for(clustering_id in clustering_ids){
+    md_clustering <- rlist::list.filter(.data = md_clusterings, id == clustering_id)[[1]]
     cluster_levels <- sapply(
-      X = get_global_meta_data(loom = loom)$clusterings[[i]]$clusters,
+      X = md_clustering$clusters,
       FUN = function(cluster) {
         return (
           setNames(
@@ -3135,8 +3139,8 @@ get_clusterings_with_name <- function(
         )
       }
     )
-    clusterings[,i] <- factor(
-      x = clusterings[,i],
+    clusterings[, as.character(x = clustering_id)] <- factor(
+      x = clusterings[, as.character(x = clustering_id)],
       levels = names(x = cluster_levels),
       labels = cluster_levels
     )
