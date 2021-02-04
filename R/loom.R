@@ -974,13 +974,14 @@ add_embedding <- function(
       )
     }
   } else {
+    id <- as.character(x = max(as.integer(x = colnames(x = ca.embeddings)))+1)
+    
     for(i in seq_along(along.with = CA_EXTRA_EMBEDDINGS_NAMES)) {
       ca.embeddings <- get_col_attr_by_key(
         loom = loom,
         key = CA_EXTRA_EMBEDDINGS_NAMES[i]
       )
       e <- as.data.frame(x = embedding[,i])
-      id <- as.character(x = ncol(x = ca.embeddings))
       colnames(x = e) <- id
       ca.embeddings <- cbind(ca.embeddings, e)
       # Update the current coordinates Embeddings
