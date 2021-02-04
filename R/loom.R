@@ -898,6 +898,24 @@ add_default_embedding <- function(
   )
 }
 
+#'@title get_next_embedding_id
+#'@description  Get the next embedding ID
+#'@param loom       The loom file handler.
+#'@export
+get_next_embedding_id <- function(loom) {
+  ca_extra_embeddings_dims <- do.call(what = "c", args = lapply(CA_EXTRA_EMBEDDINGS_NAMES, function(ca_key) {
+    ca.embeddings <- get_col_attr_by_key(
+      loom = loom,
+      key = ca_key
+    )
+    return (max(as.integer(x = colnames(x = ca.embeddings))))
+  }))
+  if(ca_extra_embeddings_dims[1] != ca_extra_embeddings_dims[2]) {
+    stop("Embeddings_X and Embeddings_Y have different dimensions. Make sure they the same dimensions.")
+  }
+  return (ca_extra_embeddings_dims[1]+1)
+}
+
 #'@title add_embedding
 #'@description Add the given embedding as a column attribute and meta data related to the given embeddding to the given .loom file handler.
 #'@param loom       The loom file handler.
@@ -974,8 +992,8 @@ add_embedding <- function(
       )
     }
   } else {
-    id <- as.character(x = max(as.integer(x = colnames(x = ca.embeddings)))+1)
-    
+    id <- as.character(x = get_next_embedding_id(loom = loom))
+
     for(i in seq_along(along.with = CA_EXTRA_EMBEDDINGS_NAMES)) {
       ca.embeddings <- get_col_attr_by_key(
         loom = loom,
