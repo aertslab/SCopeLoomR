@@ -3146,8 +3146,8 @@ get_clusterings_with_name <- function(
   clustering_ids <- sapply(X = md_clusterings, FUN = function(x) { return (x$id)})
   clusterings <- get_clusterings(loom = loom)
   # Filter out clusterings not present in global metadata attribute
-  clusterings <- clusterings[, as.character(x = clustering_ids)]
-  
+  clusterings <- clusterings[, as.character(x = clustering_ids), drop = FALSE]
+
   for(clustering_id in clustering_ids){
     md_clustering <- rlist::list.filter(.data = md_clusterings, id == clustering_id)[[1]]
     cluster_levels <- sapply(
