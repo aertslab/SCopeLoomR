@@ -1,4 +1,4 @@
-# SCopeLoomR v0.10.4
+# SCopeLoomR v0.10.5
 An R package (compatible with SCope) to create generic .loom files and extend them with other data e.g.: SCENIC regulons, Seurat clusters and markers, ... The package can also be used to read data from .loom files.
 
 ## Requirements
@@ -27,10 +27,18 @@ Installation should take less than one minute.
 devtools::install_github("aertslab/SCopeLoomR")
 ```
 
-## Tutorial
-You can find a tutorial on how to create .loom files and read data from them in the [package vignette](https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_tutorial.Rmd).
+## Tutorials
+
+- See how to create SCope compatible .loom files and extract data: [Quick Start Tutorial](https://htmlpreview.github.io/?https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_tutorial.nb.html).
+- See how to create SCope compatible .loom files from a Seurat analysis: [From Seurat Tutorial](https://htmlpreview.github.io/?https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_Seurat_tutorial.nb.html)
 
 ## Version History
+
+April 07, 2021
+
+* Version 0.10.5
+    * Fix bug issue with `get_clusterings_with_name` when 1 clustering present only
+    * Fix bug when adding seurat clusters & annotations https://github.com/aertslab/SCopeLoomR/pull/33
 
 February 04, 2021
 
