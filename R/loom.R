@@ -431,7 +431,7 @@ add_global_md_clustering_kv <- function(
   ) == clustering.id
   
   if(sum(mask) == 0) {
-    stop("Cannot add key/value to clustering that do not exists.")
+    stop("Cannot add key/value to clustering that does not exist.")
   }
   idx <- which(mask == T)
   
@@ -540,6 +540,9 @@ update_cluster_descriptions_by_cluster_annotation_mapping_df <- function(
   in.place = TRUE
 ) {
   if(loom$mode=="r") stop("File open as read-only.")
+
+  ## make sure annotation.df cluster id column is numeric!
+  annotation.df[, annotation.df.cluster.id.column.name] <- as.numeric(annotation.df[, annotation.df.cluster.id.column.name])
   
   gmd <- get_global_meta_data(loom = loom)
   gmd_clusterings <- gmd[[GA_METADATA_CLUSTERINGS_NAME]]
@@ -572,8 +575,8 @@ update_cluster_descriptions_by_cluster_annotation_mapping_df <- function(
     if(!(annotation.df.annotation.column.name %in% colnames(x = annotation.df))) {
       stop(paste0("The given '",annotation.df.annotation.column.name,"' does not exist in the given annotation.df."))
     }
-    annotation_names <- annotation[[annotation.df.annotation.column.name]]
-    cluster_ids <- annotation[[annotation.df.cluster.id.column.name]]
+    annotation_names <- annotation.df[[annotation.df.annotation.column.name]]
+    cluster_ids <- annotation.df[[annotation.df.cluster.id.column.name]]
     annotation_as_named_list <- setNames(
       object = annotation_names,
       nm = cluster_ids
@@ -588,7 +591,7 @@ update_cluster_descriptions_by_cluster_annotation_mapping_df <- function(
       if(!reset) {
         # If annotation for the current cluster not empty then add
         # Convert from factor to character vector to be used with nchar
-        d <- as.character(x = annotation_as_named_list[cluster.id]) 
+        d <- as.character(x = annotation_as_named_list[as.character(cluster.id)]) 
         
         if(length(d) > 1) {
           stop("Annotation is not unique: multiple annotation correspond to a cluster ID.")
@@ -1000,6 +1003,7 @@ add_embedding <- function(
         key = CA_EXTRA_EMBEDDINGS_NAMES[i]
       )
       e <- as.data.frame(x = embedding[,i])
+      id <- as.character(x = ncol(x = ca.embeddings))
       colnames(x = e) <- id
       ca.embeddings <- cbind(ca.embeddings, e)
       # Update the current coordinates Embeddings
@@ -1149,13 +1153,13 @@ get_unique_clusters <- function(
   if(is.factor(x = clusters)) {
     return (
       sort(
-        x = levels(x = clusters),
+        x = as.numeric(levels(x = clusters)),
         decreasing = F)
       )
   } else {
     return (
       sort(
-        x = unique(x = clusters),
+        x = as.numeric(unique(x = clusters)),
         decreasing = F
       )
     )
@@ -1217,8 +1221,8 @@ get_seurat_clustering_resolutions <- function(
 #'@param loom                                 The loom file handler.
 #'@param seurat                               The Seurat object
 #'@param seurat.assay                         The assay to access the data from (only if you're using Seurat version 3). Option used only for sanity checks.
-#'@param seurat.markers.file.path.list        The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: res.2). Default is NULL. 
-#'@param default.clustering.resolution        The clustering resolution (i.e.: res.2, ...) of the clustering that should be set as the default which an annotation can be set for.
+#'@param seurat.markers.file.path.list        The named list of file paths to the markers saved in RDS format. The names should be the resolution id of the corresponding clustering (e.g.: SCT_snn_res.0.5). Default is NULL. 
+#'@param default.clustering.resolution        The clustering resolution (i.e.: '0.5' or 'SCT_snn_res.0.5') of the clustering that should be set as the default which an annotation can be set for.
 #'@param annotation                           A data.frame with annotation for the clusters of the default clustering. Default is NULL.
 #'@param annotation.cluster.id.cn             The column name to use for the IDs of the clusters found by the given clustering group. Default is NULL.
 #'@param annotation.cluster.description.cn    The column name to use for the description of the clusters found by the given clustering group. Default is NULL.
@@ -1429,7 +1433,7 @@ create_cluster_annotation <- function(
   unique_clusters <- get_unique_clusters(clusters = clusters)
   annotation <- setNames(
     object = rep(NA, length(x = clusters)),
-    nm = names(x = clusters)
+    nm = names(clusters)
   )
 
   for(cluster.idx in seq_along(along.with = unique_clusters)) {
@@ -1443,14 +1447,13 @@ create_cluster_annotation <- function(
     }
     if(!is.null(x = cluster.meta.data.df)) {
       if(!(cluster.description.cn %in% colnames(x = cluster.meta.data.df))) {
-        stop(paste0("The given column ",cluster.description.cn, " does not exists in the annotation provided."))
+        stop(paste0("The given column ",cluster.description.cn, " does not exist in the annotation provided."))
       }
-      description <- as.vector(x = unlist(x = cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster, cluster.description.cn]))
+      description <- as.vector(x = unlist(x = cluster.meta.data.df[cluster.meta.data.df[[cluster.id.cn]] == cluster_id, cluster.description.cn]))
     }
     annotation[as.vector(x = unlist(x = clusters)) == cluster_id] <- description
   }
   annotation <- factor(x = annotation)
-  names(x = annotation) <- names(x = clusters)
   return (annotation)
 }
 
@@ -1631,7 +1634,7 @@ add_annotated_clustering <- function(
   }
   # Adding the clustering data
   if(col_attrs_exists_by_key(loom = loom, key = CA_CLUSTERINGS_NAME)) {
-    print(paste(CA_CLUSTERINGS_NAME, "already exists..."))
+    print(paste0("col_attr '", CA_CLUSTERINGS_NAME, "' already exists..."))
     ca_clusterings <- get_clusterings(loom = loom)
     # Set the clustering id
     id <- ncol(x = ca_clusterings) # n clusterings (start at 0)
@@ -1669,7 +1672,7 @@ add_annotated_clustering <- function(
     annotation = annotation
   )
   flush(loom = loom)
-  return (id)
+  return(id)
 }
 
 #*******************#
@@ -2920,7 +2923,7 @@ get_cell_ids <- function(
   is.flybase.gn = F
 ) {
   ra <- loom[["col_attrs"]]
-  return (ra[[CA_CELLID]][])
+  return(ra[[CA_CELLID]][])
 }
 
 #'@title get_genes
