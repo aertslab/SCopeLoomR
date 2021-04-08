@@ -30,7 +30,6 @@ devtools::install_github("aertslab/SCopeLoomR")
 ## Tutorials
 
 - See how to create SCope compatible .loom files and extract data: [Quick Start Tutorial](https://htmlpreview.github.io/?https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_tutorial.nb.html).
-- See how to create SCope compatible .loom files from a Seurat analysis: [From Seurat Tutorial](https://htmlpreview.github.io/?https://github.com/aertslab/SCopeLoomR/blob/master/vignettes/SCopeLoomR_Seurat_tutorial.nb.html)
 
 ## Version History
 
