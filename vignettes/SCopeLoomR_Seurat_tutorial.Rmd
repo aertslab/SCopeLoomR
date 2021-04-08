@@ -1,0 +1,211 @@
+---
+title: "SCopeLoomR Seurat tutorial"
+author: "Katina"
+author_gh_url: "https://github.com/tropfenameimer"
+date: "20/02/2021"
+output:
+  html_notebook:
+    toc: yes
+  html_document:
+    keep_md: true
+    df_print: paged
+    toc: yes
+    toc_float: yes
+  BiocStyle::html_document:
+    number_sections: no
+  pdf_document:
+    toc: yes
+vignette: |
+  %\VignetteIndexEntry{SCopeLoomR} 
+  %\VignetteEncoding{UTF-8} 
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(hdf5r)
+source("../R/loom.R")
+```
+
+
+## How to make a .loom file for SCope from a Seurat object
+
+```{r packages}
+library(Seurat)
+library(SCopeLoomR)
+```
+
+### Download example data
+
+```{r get_data}
+system("wget http://www.bioinformatics.babraham.ac.uk/training/10XRNASeq/10XCourse%20Data.zip")
+system("unzip 10XCourse\\ Data.zip")
+list.files("10XCourse Data/filtered_feature_bc_matrix/")
+```
+
+### Create a Seurat object
+
+We use high filtering thresholds to keep the object small
+
+```{r create_so}
+counts <- Read10X("10XCourse Data/filtered_feature_bc_matrix/")
+
+so <- CreateSeuratObject(
+        counts = counts,
+        min.cells = 100,
+        min.features = 1500)
+so
+```
+
+### Standard RNA data processing
+
+```{r process_so}
+so <- suppressWarnings(expr = SCTransform(so, verbose = FALSE))
+so <- RunPCA(so, npcs = 30)
+so <- RunUMAP(so, dims = 1:30,
+              reduction.name = "umap.rna", reduction.key = 'rnaUMAP_')
+so <- FindNeighbors(so, dims = 1:30)
+so <- FindClusters(so, resolution = 0.5, algorithm = 3)
+markers <- FindAllMarkers(so,
+                only.pos = TRUE, min.pct = 0.5, logfc.threshold = 0.5)
+saveRDS(markers,
+        file = "10xtest_seurat_markers_res0.5.rds.gz", compress = "gzip")
+
+so <- FindClusters(so, resolution = 0.3, algorithm = 3)
+markers <- FindAllMarkers(so, 
+                only.pos = TRUE, min.pct = 0.5, logfc.threshold = 0.5)
+saveRDS(markers,
+        file = "10xtest_seurat_markers_res0.3.rds.gz", compress = "gzip")
+so[["percent.mt"]] <- PercentageFeatureSet(so, pattern = "^MT-")
+saveRDS(so, file = "10xtest_so.rds.gz", compress = "gzip")
+```
+### Create a loom file
+
+```{r build_loom}
+build_loom(file.name = "10xtest.loom",
+        dgem = so@assays$RNA@counts,
+        title = "testloom",
+        default.embedding = so@reductions$umap.rna@cell.embeddings,
+        default.embedding.name = "umap.rna")
+```
+
+Now open the loom file for editing
+
+```{r}
+system("cp 10xtest.loom 10xtest.loom_bk")
+#sytem("cp 10xtest.loom_bk 10xtest.loom")
+loom <- open_loom("10xtest.loom", mode = "r+")
+```
+
+### Add additional embedding(s) and meta data
+
+```{r}
+add_embedding(loom = loom, 
+              embedding = so@reductions$pca@cell.embeddings,
+              name = "pca")
+add_col_attr(loom = loom, key = "percent.mito",
+              value = so@meta.data$percent.mt, as.metric = TRUE)
+#make up some batch origin to add as discrete attribute
+batch_origin <- rep("batch1", length(Cells(so)))
+batch_origin[sample(1:length(Cells(so)), round(length(Cells(so))/2))] <- "batch2"
+add_col_attr(loom = loom, key = "batch",
+              value = batch_origin, as.annotation = TRUE)
+```
+
+### Add Seurat clusters and markers
+
+```{r add_clusters}
+add_seurat_clustering(loom = loom,
+        seurat = so,
+        seurat.assay = "RNA",
+        seurat.clustering.prefix = "SCT_snn_res.",
+        default.clustering.resolution = "res.0.5",
+        seurat.markers.file.path.list = 
+          list(SCT_snn_res.0.5 = "10xtest_seurat_markers_res0.5.rds.gz",
+                SCT_snn_res.0.3 = "10xtest_seurat_markers_res0.3.rds.gz"),
+        seurat.marker.metric.accessors = c("avg_logFC", "p_val_adj"),
+        seurat.marker.metric.names = c("Avg. log2FC", "adjusted P-value"),
+        seurat.marker.metric.description = 
+          c("Average log fold change", "Adjusted p-value (BF)")
+)
+```
+
+Note that the Seurat clusterings you want to add need to be present with the indicated prefix (here "SCT_snn_res.") in the metadata of the Seurat object:
+
+```{r}
+names(so@meta.data)
+```
+
+### Add some custom clustering
+
+```{r add_kmeans}
+#just making something up
+kclust <- kmeans(so@reductions$umap.rna@cell.embeddings, 3)$cluster
+
+add_clustering(loom = loom,
+               group = "Custom clustering",
+               name = "kmeans 3",
+               clusters = kclust)
+```
+
+You can add marker genes for this clustering, too
+
+```{r add_kmeans_markers}
+Idents(so) <- kclust
+kmeans_markers <- FindAllMarkers(so, 
+                only.pos = TRUE, min.pct = 0.5, logfc.threshold = 0.5)
+
+#set 'clustering.id' to the number returned above by add_clustering()
+add_clustering_markers(loom = loom,
+        clustering.id = 2,
+        clustering.markers = split(kmeans_markers, kmeans_markers$cluster),
+        marker.metric.accessors = c("avg_logFC", "p_val_adj"),
+        marker.metric.names = c("Avg. log2FC", "adjusted P-value"),
+        marker.metric.description = c("Average log fold change", "Adjusted p-value (BF)"))
+```
+
+### Add annotations for a specific clustering
+
+Say you have looked at your data and identified the cell types
+and now you want to add this annotation to the loom file
+
+```{r add_annotation}
+annot_df <- data.frame(list(
+    cluster_id = c(1, 2, 3), 
+    cluster_name = c("happy cells", "weird cells", "anxious cells")))
+annot_df
+
+annot_list <- setNames(annot_df[Idents(so), "cluster_name"], Cells(so))
+head(annot_list)
+
+cl_id <- add_annotated_clustering(loom = loom,
+        group = "Custom clustering",
+        name = "kmeans 3 annotated",
+        clusters = Idents(so),
+        annotation = annot_list,
+        is.default = T)
+```
+note that this creates a new clustering and does not overwrite the existing one
+so you'd have to add the markers again
+
+```{r add_markers}
+add_clustering_markers(loom = loom,
+        clustering.id = cl_id,
+        clustering.markers = split(kmeans_markers, kmeans_markers$cluster),
+        marker.metric.accessors = c("avg_logFC", "p_val_adj"),
+        marker.metric.names = c("Avg. log2FC", "adjusted P-value"),
+        marker.metric.description = c("Average log fold change", "Adjusted p-value (BF)"))
+```
+
+### Don't forget to close the .loom file
+
+```{r close_loom}
+close_loom(loom)
+```
+
+```{r session}
+sessionInfo()
+```
