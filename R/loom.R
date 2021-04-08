@@ -1892,6 +1892,12 @@ add_clustering_markers <- function(
           FUN = function(cluster.idx) {
             cluster_name <- names(clustering.markers)[cluster.idx]
             # Get the current metric_name in the cluster marker table of the current cluster_name
+            if(!("gene" %in% colnames(x = clustering.markers[[cluster.idx]]))) {
+              stop(paste0("'gene' column does not exist in the given clustering table(s)."))
+            }
+            if(!(metric_accessor %in% colnames(x = clustering.markers[[cluster.idx]]))) {
+              stop(paste0("'", metric_accessor, "' column does not exist in the given clustering table(s)."))
+            }
             cluster_markers <- clustering.markers[[cluster.idx]][, c("gene", metric_accessor)]
             genes_df <- data.frame("gene" = genes, stringsAsFactors = F)
             metric_df <- merge(
