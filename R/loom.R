@@ -90,7 +90,7 @@ add_hierarchy <- function(
 ) {
   if(loom$mode=="r") stop("File open as read-only.")
   he <- hierarchy_exists(loom = loom)
-  if(he & !overwrite) {
+  if(he && !overwrite) {
     stop("Hierarchy already exists for the given loom. You can overwrite the hierarchy in the given loom by the given hierarchy by setting overwrite option to TRUE.")
   }
   for(idx in seq_along(along.with = hierarchy)) {
@@ -1184,14 +1184,14 @@ get_seurat_clustering_resolutions <- function(
 
     # Check if there are multiple prefixes for clustering information
     # Seurat v3 uses integrated_snn_ prefix for storing clustering information from its integration method
-    if(length(x = clustering.prefix) > 1 & is.null(x = prefix)) {
+    if(length(x = clustering.prefix) > 1 && is.null(x = prefix)) {
       stop(paste0("Detected multiple prefixes for clustering information: ", paste(clustering.prefix, collapse = ", "), " . Please select one of them using the prefix argument."))
     } else if(length(x = clustering.prefix) == 1) {
       prefix <- clustering.prefix
     } else if(length(x = clustering.prefix) == 0) {
       stop("It seems that clustering data has not been computed. ")
     }
-    if(length(x = prefix) == 1 & !(prefix %in% clustering.prefix)) {
+    if(length(x = prefix) == 1 && !(prefix %in% clustering.prefix)) {
       stop("The selected prefix does not exist.")
     }
     return (
@@ -1203,7 +1203,7 @@ get_seurat_clustering_resolutions <- function(
         )[,2]
       )
     )
-  } else if (seurat@version >= 2 & seurat@version < 3){
+  } else if (seurat@version >= 2 && seurat@version < 3){
     return (
       as.numeric(x = stringr::str_split_fixed(
         string = names(x = seurat@calc.params)[grep(pattern = "FindClusters", x = names(x = seurat@calc.params))],
@@ -1257,7 +1257,7 @@ add_seurat_clustering <- function(
   if(seurat@version >= 3) {
     counts <- seurat@assays[[seurat.assay]]@counts
     data <- seurat@assays[[seurat.assay]]@data
-  } else if (seurat@version >= 2 & seurat@version < 3){
+  } else if (seurat@version >= 2 && seurat@version < 3){
     counts <- seurat@raw.data
     data <- seurat@data
   } else {
@@ -1288,7 +1288,7 @@ add_seurat_clustering <- function(
         }
         cluster_ids <- seurat@meta.data[, paste0(seurat.clustering.prefix, res)]
         names(x = cluster_ids) <- rownames(x = seurat@meta.data)
-      } else if (seurat@version >= 2 & seurat@version < 3){
+      } else if (seurat@version >= 2 && seurat@version < 3){
         seurat <- Seurat::SetAllIdent(
           object = seurat,
           id=resolution_id
@@ -1308,7 +1308,7 @@ add_seurat_clustering <- function(
       if(!is.null(x = default.clustering.resolution)) {
         if(res == default.clustering.resolution | resolution_id == default.clustering.resolution) {
           print("Adding default Seurat clusters...")
-          if(!is.null(x = annotation) & !is.null(x = annotation.cluster.id.cn) & !is.null(x = annotation.cluster.description.cn)) {
+          if(!is.null(x = annotation) && !is.null(x = annotation.cluster.id.cn) && !is.null(x = annotation.cluster.description.cn)) {
             a <- annotation
             ac_id_cn <- annotation.cluster.id.cn
             ac_description_cn <- annotation.cluster.description.cn
@@ -1875,7 +1875,7 @@ add_clustering_markers <- function(
   
   # Add the marker metrics
   # Check all marker metric vectors have the same length
-  if(!is.null(x = marker.metric.accessors) & !is.null(x = marker.metric.names) & !is.null(x = marker.metric.descriptions)) {
+  if(!is.null(x = marker.metric.accessors) && !is.null(x = marker.metric.names) && !is.null(x = marker.metric.descriptions)) {
     if(!all(lapply(X = list(marker.metric.accessors,marker.metric.names,marker.metric.descriptions), FUN = length) == length(marker.metric.accessors))) {
       stop("The given marker.metric.accessors, marker.metric.names and marker.metric.descriptions should have the same length.")
     }
@@ -2281,11 +2281,11 @@ add_col_attr <- function(
   as.metric = F
 ) {
   if(loom$mode=="r") stop("File open as read-only.")
-  if(as.annotation & as.metric) {
+  if(as.annotation && as.metric) {
     stop("Cannot add column attribute that is both of type metric and annotation.")
   }
   
-  if(as.annotation & length(unique(value)) > 245) {
+  if(as.annotation && length(unique(value)) > 245) {
     stop("Cannot add column attribute as an annotation with more than 245 unique values.")
   }
   
@@ -2621,7 +2621,7 @@ open_loom <- function(
   file.path,
   mode="r"
 ) {
-  if(mode != "r" & mode != 'r+') {
+  if(mode != "r" && mode != 'r+') {
     stop("'r' (read) and 'r+' (read/write) modes are only allowed.")
   }
   loom <- tryCatch(
@@ -2719,7 +2719,7 @@ check_missings <- function(
   }
   return (
     list(
-      "result"=length(x = x_diff_y)==0 & length(x = y_diff_x)==0,
+      "result"=length(x = x_diff_y)==0 && length(x = y_diff_x)==0,
       "x_missing_in_y"=x_diff_y,
       "y_missing_in_x"=y_diff_x)
     )
@@ -2740,7 +2740,7 @@ is_order_conserved <- function(x,y) {
   )
 }
 
-#'@title open_loom
+#'@title compress_gzb64
 #'@description Open loom file and return a .loom file handler.
 #'@param file.path The file path to the .loom file.
 compress_gzb64 <- function(c) {
@@ -2754,7 +2754,7 @@ compress_gzb64 <- function(c) {
   )
 }
 
-#'@title open_loom
+#'@title decompress_gzb64
 #'@description Open loom file and return a .loom file handler.
 #'@param file.path The file path to the .loom file.
 decompress_gzb64 <- function(gzb64c) {
