@@ -3035,6 +3035,67 @@ get_embeddings <- function(
 #  Clusterings   ----
 #*******************#
 
+#'@title get_clustering_annotations
+#'@description Get crowd annotations from each clustering of the clustering with the given clustering.name
+#'@param loom The loom file handler.
+#'@param clustering.name The name of the clustering.
+#'@param curator_orcid (Optional) If provided, only annotations with this ORCID will be selected.
+#'@param out_file_path (Optional) If provided, the output results will be saved to this file path.
+#'@return A cell-based data.frame containing information about the annotations associated to each cluster of the clustering.
+get_clustering_annotations <- function(loom, clustering_name = "Annotation", curator_orcid = NULL, out_file_path = NULL) {
+  md <- get_global_meta_data(loom = loom)
+  md_clusterings <- md$clusterings
+  md_clustering <- rlist::list.filter(.data = md_clusterings, name == clustering_name)
+  if(length(x = md_clustering) != 1) {
+    stop(paste0("Clustering ", clustering_name," does not exist. list_clusterings_names() function can be used to list the existing clusterings."))
+  }
+  md_clustering <- md_clustering[[1]]
+  print(paste0("Extracting annotations from clustering '", clustering_name, "'..."))
+  clusterings <- get_clusterings_with_name(loom = loom)
+  clustering <- clusterings[[as.character(x = md_clustering$id)]]
+  
+  clustering_annotations <- NULL
+  for(cluster in md_clustering$clusters) {
+    if(length(x = cluster$cell_type_annotation) > 1) {
+      stop(paste0("Extracting annotations with cluster having multiple annotations has not been implemented. Cluster ", cluster$id," (", cluster$description,") has multiple annotations."))
+    }
+    cta <- cluster$cell_type_annotation[[1]]
+    
+    if(is.null(x = cta$data$annotation_label)) {
+      warning(paste0("Skipping cluster with ID ", cluster$id," and description '", cluster$description,"'."))
+      next
+    }
+    curators <- rlist::list.apply(.data = cta$votes$votes_for$voters, function(x) { x$voter_id })[[1]]
+    # If ORCID provided, only annotations with the given ORCID will be selected
+    if(!is.null(x = curator_orcid) && !(curator_orcid %in% curators)) {
+      next
+    }
+    # Make annotation data.frame for the current "cluster"
+    cell_ids <- get_cell_ids(loom = loom)[clustering == cta$data$annotation_label]
+    annotations_df <- data.frame("CellID"=cell_ids)
+    annotations_df$AnnotationLabel <- cta$data$annotation_label
+    annotations_df$AnnotationFBbt <- cta$data$obo_id
+    annotations_df$CuratorMarkers <- paste(cta$data$markers, collapse = ", ")
+    annotations_df$Publication <- cta$data$publication
+    annotations_df$Curators <- paste0(curators, collapse = ", ")
+    annotations_df$Comment <- cta$data$comment
+    # Concatenate the results
+    if(is.null(x = clustering_annotations)) {
+      clustering_annotations <- annotations_df
+    } else {
+      clustering_annotations <- rbind(clustering_annotations, annotations_df)
+    }
+  }
+  
+  # Write to CSV file if out file path provided
+  if(!is.null(x = out_file_path)) {
+    print(paste0("Writing output to CSV file: ", out_file_path))
+    write.csv(x = clustering_annotations, file = out_file_path, row.names = FALSE)
+  }
+  return(clustering_annotations)
+}
+
+
 #'@title get_clustering_idx_by_cluster_name
 #'@description Get index of the clutering related to the given cluster.name.
 #'@param loom The loom file handler.
