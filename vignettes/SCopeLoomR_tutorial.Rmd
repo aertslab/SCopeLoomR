@@ -281,6 +281,35 @@ cluster10_dgem <- get_cluster_dgem_by_name(loom = loom, cluster.name = "Astrocyt
 close_loom(loom)
 ```
 
+## Get annotations from a clustering
+
+```{r}
+# Get annotations from clustering (default is set to Annotation)
+clustering_annotations_df <- get_clustering_annotations(loom = loom)
+# Check available clusterings
+list_clusterings_names()
+# Get annotations from clustering with given name (here: [custom-clustering-name])
+clustering_annotations_df <- get_clustering_annotations(
+  loom = loom,
+  clustering_name = "[custom-clustering-name]",
+)
+# Get annotations from clustering with given name (here: [custom-clustering-name]) annotated by person associated with the given ORCID.
+clustering_annotations_df <- get_clustering_annotations(
+  loom = loom,
+  clustering_name = "[custom-clustering-name]",
+  curator_orcid = "XXX-XXX-XXX-XXX"
+)
+# Get annotations from clustering with given name (here: [custom-clustering-name]) annotated by person associated with the given ORCID.
+# Save the resulting output (data.frame) to CSV file (here: ./test.csv)
+clustering_annotations_df <- get_clustering_annotations(
+  loom = loom,
+  clustering_name = "[custom-clustering-name]",
+  curator_orcid = "XXX-XXX-XXX-XXX",
+  out_file_path = "./tmp.csv"
+)
+```
+
+
 ## Other general accessors
 
 ```{r loomSCENIC, fig.height=4, fig.width=4}
