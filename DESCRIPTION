@@ -1,7 +1,7 @@
 Package: SCopeLoomR
 Type: Package
 Title: Build .loom files (compatible with SCope) and extract data from .loom files.
-Version: 0.11.0
+Version: 0.12.0
 Author: dweemx
 Maintainer: dweemx <mdewaegeneer@gmail.com>
 Description: R package to build generic .loom files aligning with the default naming convention of the .loom format and 
