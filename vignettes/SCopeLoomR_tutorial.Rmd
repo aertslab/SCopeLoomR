@@ -309,6 +309,17 @@ clustering_annotations_df <- get_clustering_annotations(
 )
 ```
 
+## Get all newly added annotations by ORCID
+
+```{r}
+# Get all annotations across all clusterings that were added after 2019-01-01 and from the user with the given XXX-XXX-XXX-XXX ORCID
+all_clustering_annotations_df <- get_all_clustering_annotations(
+  loom = loom,
+  curator_orcid = "XXX-XXX-XXX-XXX",
+  from_date = "2019-01-01",
+)
+```
+
 
 ## Other general accessors
 
