@@ -3042,36 +3042,70 @@ get_embeddings <- function(
 #'@param curator_orcid (Optional) If provided, only annotations with this ORCID will be selected.
 #'@param out_file_path (Optional) If provided, the output results will be saved to this file path.
 #'@return A cell-based data.frame containing information about the annotations associated to each cluster of the clustering.
-get_clustering_annotations <- function(loom, clustering_name = "Annotation", curator_orcid = NULL, out_file_path = NULL) {
+get_clustering_annotations <- function(
+  loom,
+  clustering_name = "Annotation",
+  curator_orcid = NULL,
+  curation_timestamp = NULL,
+  skip_without_timestamp = FALSE,
+  out_file_path = NULL
+) {
+  
   md <- get_global_meta_data(loom = loom)
   md_clusterings <- md$clusterings
+  
   md_clustering <- rlist::list.filter(.data = md_clusterings, name == clustering_name)
   if(length(x = md_clustering) != 1) {
-    stop(paste0("Clustering ", clustering_name," does not exist. list_clusterings_names() function can be used to list the existing clusterings."))
+    stop(paste0("Clustering ", clustering_name,"does not exist. list_clusterings_names() function can be used to list the existing clusterings."))
   }
   md_clustering <- md_clustering[[1]]
-  print(paste0("Extracting annotations from clustering '", clustering_name, "'..."))
+  
+  # Get the cell-cluster association for the given clustering
   clusterings <- get_clusterings_with_name(loom = loom)
   clustering <- clusterings[[as.character(x = md_clustering$id)]]
   
   clustering_annotations <- NULL
+  
+  is_extracting <- FALSE
+  
   for(cluster in md_clustering$clusters) {
+    if(length(x = cluster$cell_type_annotation) == 0) {
+      next
+    }
     if(length(x = cluster$cell_type_annotation) > 1) {
       stop(paste0("Extracting annotations with cluster having multiple annotations has not been implemented. Cluster ", cluster$id," (", cluster$description,") has multiple annotations."))
     }
     cta <- cluster$cell_type_annotation[[1]]
     
     if(is.null(x = cta$data$annotation_label)) {
-      warning(paste0("Skipping cluster with ID ", cluster$id," and description '", cluster$description,"'."))
+      warning(paste0("Skipping cluster with ID ", cluster$id," and description '", cluster$description,"'. No annotation detected."))
       next
     }
     curators <- rlist::list.apply(.data = cta$votes$votes_for$voters, function(x) { x$voter_id })[[1]]
+    
     # If ORCID provided, only annotations with the given ORCID will be selected
     if(!is.null(x = curator_orcid) && !(curator_orcid %in% curators)) {
       next
     }
+    
+    # If curation timestamp provided, only annotations after the given timestamp will be selected
+    if(!is.numeric(x = curation_timestamp)) {
+      stop("Expects curation_timestamp to be an integer and in milleseconds.")
+    }
+    
+    if(cta$data$timestamp < 0 && skip_without_timestamp) {
+      next
+    }
+    
+    if(!is.null(x = curator_orcid) && cta$data$timestamp > 0 && cta$data$timestamp < curation_timestamp) {
+      print(cta$data$timestamp)
+      next
+    }
+    
+    is_extracting <- TRUE
+    
     # Make annotation data.frame for the current "cluster"
-    cell_ids <- get_cell_ids(loom = loom)[clustering == cta$data$annotation_label]
+    cell_ids <- get_cell_ids(loom = loom)[clustering == cluster$description]
     annotations_df <- data.frame("CellID"=cell_ids)
     annotations_df$AnnotationLabel <- cta$data$annotation_label
     annotations_df$AnnotationFBbt <- cta$data$obo_id
@@ -3079,6 +3113,10 @@ get_clustering_annotations <- function(loom, clustering_name = "Annotation", cur
     annotations_df$Publication <- cta$data$publication
     annotations_df$Curators <- paste0(curators, collapse = ", ")
     annotations_df$Comment <- cta$data$comment
+    annotations_df$ClusteringID <- md_clustering$id
+    annotations_df$ClusteringName <- md_clustering$name
+    annotations_df$ClusterID <- cluster$id
+    
     # Concatenate the results
     if(is.null(x = clustering_annotations)) {
       clustering_annotations <- annotations_df
@@ -3087,12 +3125,64 @@ get_clustering_annotations <- function(loom, clustering_name = "Annotation", cur
     }
   }
   
-  # Write to CSV file if out file path provided
+  if(is_extracting) {
+    print(paste0("Extracting annotations from clustering '", clustering_name, "'"))
+  }
+  
   if(!is.null(x = out_file_path)) {
     print(paste0("Writing output to CSV file: ", out_file_path))
     write.csv(x = clustering_annotations, file = out_file_path, row.names = FALSE)
   }
+  
   return(clustering_annotations)
+  
+}
+
+#'@title get_all_clustering_annotations
+#'@description Get crowd annotations from each clustering of the clustering with the given clustering.name
+#'@param loom The loom file handler.
+#'@param clustering.name The name of the clustering.
+#'@param curator_orcid Only annotations with this ORCID will be selected.
+#'@param from_date Only annotations that were added after this data (YYYY-mm-dd) will be selected. By default, it will use the current date.
+#'@param skip_without_timestamp Don't keep annotations with negative timestamp (these are usually final/custom generated annotations).
+#'@return A cell-based data.frame containing information about the annotations associated to each cluster of all the clusterings.
+get_all_clustering_annotations <- function(
+  loom, 
+  curator_orcid = NULL, 
+  from_date = format(Sys.time(), "%Y-%m-%d"),
+  skip_without_timestamp = TRUE
+) {
+  if(is.null(x = curator_orcid)) {
+    stop("The curator_orcid parameter is required.")
+  }
+  d <- try(as.Date(x = from_date, format="%Y-%m-%d"))
+  if("try-error" %in% class(x = d) || is.na(x = d)) {
+    print("The given data is not valid. Use YYYY-mm-dd format.")
+  }
+  date <- as.POSIXct(paste0(from_date, "00:00:00"))
+  # Convert date to milliseconds
+  curation_timestamp <- as.integer(x = date)*1000
+  all_clustering_annotations <- NULL
+  
+  for(clustering_name in list_clusterings_names(loom = loom)) {
+    annotations_df <- get_clustering_annotations(
+      loom = loom,
+      clustering_name = clustering_name,
+      curator_orcid = curator_orcid,
+      curation_timestamp = curation_timestamp,
+      skip_without_timestamp = skip_without_timestamp
+    )
+    # Concatenate the results
+    if(is.null(x = all_clustering_annotations)) {
+      all_clustering_annotations <- annotations_df
+    } else {
+      all_clustering_annotations <- rbind(
+        all_clustering_annotations,
+        annotations_df
+      )
+    }
+  }
+  return (all_clustering_annotations)
 }
 
 
