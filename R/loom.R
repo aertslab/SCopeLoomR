@@ -2494,7 +2494,7 @@ build_loom <- function(
     # matrix
     # Check the type of the sparse matrix
     # convert to dgCMatrix if necessary to speedup populating the matrix slot
-    if(class(x = dgem) == "dgTMatrix") {
+    if("dgTMatrix" %in% class(x = dgem)) {
       print("Converting to dgCMatrix...")
       dgem <- methods::as(
         object = dgem,
